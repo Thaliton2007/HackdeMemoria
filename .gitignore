@@ -1,0 +1,11 @@
+# Dependências e caches locais (não versionar)
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.DS_Store
+
+# Saídas temporárias de auditoria
+auditoria.json
+*.log
