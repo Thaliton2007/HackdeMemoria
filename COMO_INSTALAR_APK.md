@@ -12,7 +12,7 @@ Voce tambem pode abrir a pagina
 https://github.com/Thaliton2007/HackdeMemoria/releases
 e tocar no arquivo **MemoriaHack.apk**.
 
-O arquivo tem cerca de **3,5 MB** e precisa de **Android 8.0 ou mais novo**.
+O arquivo tem cerca de **4,2 MB** e precisa de **Android 8.0 ou mais novo**.
 
 > **Versão 1.3 (atual)** — o app tenta exibir vídeos e PDFs do Drive **dentro
 > da própria aula**, com tela cheia para vídeos. O vídeo "Opening Class" do
