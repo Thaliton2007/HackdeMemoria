@@ -41,11 +41,14 @@ baixa essa mesma chave e a injeta no Gradle via
 `-Pandroid.injected.signing.*`. A Release que o usuario ve (`apk-v1`) continua
 com um unico arquivo: `MemoriaHack.apk`.
 
-Para confirmar que duas versoes usam o mesmo certificado:
+Para confirmar que duas versoes usam o mesmo certificado (sem precisar de
+Java / Android SDK na maquina):
 
 ```bash
-apksigner verify --print-certs MemoriaHack.apk | grep -i fingerprint
+python3 ferramentas/verificar_assinatura_apk.py A.apk B.apk
 ```
+
+Ou, com o SDK instalado: `apksigner verify --print-certs MemoriaHack.apk`.
 
 ## Margens de seguranca (v1.1)
 
