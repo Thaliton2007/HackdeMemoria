@@ -63,24 +63,29 @@ a faixa da barra de status e `windowLightStatusBar=true` mantem os icones do
 sistema legiveis. Para midia privada, o bridge tambem neutraliza `.vidbox`/
 `.pdfbox` (caixas pretas 16:9) ao trocar o iframe pelo botao "Abrir no Chrome".
 
-## Midia do Drive dentro do app (v1.3)
+## Midia do Drive dentro do app (v1.4)
 
-O HTML ja usa o player oficial `/preview` do Drive em iframes. O APK agora
-**deixa o iframe tocar dentro da aula**, ativa cookies de terceiros e remove
-somente o marcador `; wv` do User-Agent (alguns players recusam esse marcador).
-Para cada iframe ha um link pequeno **"Abrir no Chrome"** como alternativa;
-para video, o botao de tela cheia e conectado ao WebChromeClient.
+O HTML original continua intacto; a ponte do APK intercepta os botoes de
+audio dos cursos. Para arquivos acessiveis por link, o app usa o `MediaPlayer`
+nativo e o link direto de download/stream do Drive: o toque inicia o audio,
+e o mesmo botao permite pausar e continuar sem inserir o mini-player na pagina.
+Se a reproducao direta falhar, o botao passa a abrir o `/preview` numa **Chrome
+Custom Tab**. Para o acervo privado de Espanhol, o clique vai direto para essa
+aba integrada, sem tentar autenticar dentro do WebView.
 
-O video da captura do usuario, `Opening_Class.mp4`, foi localizado pelo nome
-no Drive e confirmado com permissao `anyoneWithLink: reader`. Isso permite
-assistir sem login e portanto sem sair do app. **Nenhuma permissao foi
-alterada.** Arquivos privados (como os do acervo de Espanhol) podem
-redirecionar para `accounts.google.com`; a autenticacao Google e bloqueada em
-WebView por politica de seguranca. O APK detecta o redirecionamento e mostra
-um botao que abre o preview numa **Chrome Custom Tab**: uma aba integrada, com
-barra azul e retorno direto para a aula, nao uma nova aba solta no Chrome.
-Essa e a alternativa segura sem tornar o Drive publico nem copiar os videos
-(ha arquivos de centenas de MB e um acervo total de dezenas de GB).
+Para videos, o APK mantem o player oficial `/preview` dentro do curso, aumenta
+a altura do quadro no celular e acrescenta **Ampliar video**. O WebChromeClient
+ja implementa a exibicao em tela cheia pedida pelo player. **Pausar, avancar e
+velocidade continuam sob controle do player do Drive**; a ponte nao tenta
+inspecionar nem modificar o iframe de outro dominio.
+
+Os arquivos de audio, video e PDF continuam hospedados no Drive. **Nenhuma
+permissao foi alterada.** O video `Opening_Class.mp4` tem permissao
+`anyoneWithLink: reader`; o audio real da aula Small Talk (`Small_Talk_Audio_aula.mp3`)
+tambem foi conferido como `anyoneWithLink: reader`. Arquivos privados podem
+redirecionar para `accounts.google.com`; o Google bloqueia autenticacao em
+WebView. A Chrome Custom Tab e uma aba integrada, com barra azul e retorno
+direto para a aula, nao uma aba solta no navegador.
 
 ## Pontes nativas (por que existem)
 
@@ -89,7 +94,8 @@ Essa e a alternativa segura sem tornar o Drive publico nem copiar os videos
 | `speechSynthesis` (ouvir) | Nao implementado | `TextToSpeech` nativo + shim JS |
 | `SpeechRecognition` (falar) | Nao implementado | `SpeechRecognizer` + shim JS |
 | `getUserMedia` (gravar voz) | Precisa de permissao explicita | `onPermissionRequest` + `RECORD_AUDIO` |
-| Player do Drive em iframe | Player incorporado funciona para arquivos acessiveis; login Google nao | Iframe no proprio app + Custom Tab so como fallback/para privado |
+| Audio no Drive | Iframe deixava mini-player visivel e nao iniciava sozinho | `MediaPlayer` nativo para arquivos acessiveis; Custom Tab para privado ou em falha |
+| Video no Drive em iframe | Quadro 16:9 pequeno limitava os controles no celular | Quadro mais alto + botao Ampliar; fullscreen tratado pelo WebChromeClient |
 | Botao Voltar | Navegacao do app nao cria historico | Pilha de paginas por frame + `__mhBackPressed` |
 | Exportar progresso (`Blob` + `download`) | WebView nao salva blob | `saveFile()` via MediaStore -> Downloads |
 | Importar progresso (`<input type=file>`) | Precisa de chooser nativo | `onShowFileChooser` + `onActivityResult` |

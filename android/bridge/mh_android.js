@@ -69,6 +69,8 @@
           asrAtual = null;
           if (typeof r.onend === 'function') r.onend({});
         }
+      } else if (kind === 'audio') {
+        atualizarBotoesAudio(String(b || ''), a);
       } else if (kind === 'drive') {
         /* O nativo detectou um redirecionamento do player para login Google.
            O Google nao permite essa autenticacao dentro de WebView. */
@@ -224,12 +226,60 @@
 
   /* ------------------------------------------------------------------
      5. Midia do Drive DENTRO do app.
-        Arquivos compartilhados como "qualquer pessoa com o link" podem
-        tocar pelo player /preview no WebView. O acervo de Espanhol e privado
-        e usa Chrome Custom Tab integrado. Se qualquer outro preview privado
-        redirecionar para accounts.google.com, o nativo detecta e avisa via
-        __mhEvent('drive','login').
+        Arquivos de audio compartilhados por link tocam no MediaPlayer nativo,
+        sem inserir o mini-player do Drive na pagina. O acervo privado de
+        Espanhol continua abrindo na Chrome Custom Tab integrada. Para video,
+        mantemos o preview do Drive, ampliado para deixar os controles visiveis.
      ------------------------------------------------------------------ */
+  function previewDrive(id) {
+    return 'https://drive.google.com/file/d/' + encodeURIComponent(id) + '/preview';
+  }
+
+  function atualizarBotoesAudio(id, estado) {
+    if (!id) return;
+    var botoes = document.querySelectorAll('[data-act="aud"][data-a], [data-act="aud2"][data-a]');
+    for (var i = 0; i < botoes.length; i++) {
+      var btn = botoes[i];
+      if (String(btn.getAttribute('data-a') || '') !== id) continue;
+      if (btn.__mhAudioLabel == null) btn.__mhAudioLabel = btn.textContent || '';
+      btn.dataset.mhAudioState = estado || '';
+      if (estado === 'loading') btn.textContent = '⏳ Carregando áudio…';
+      else if (estado === 'playing') btn.textContent = '⏸ Pausar áudio';
+      else if (estado === 'paused') btn.textContent = '▶ Continuar áudio';
+      else if (estado === 'error') btn.textContent = '↗ Abrir áudio no Chrome';
+      else btn.textContent = btn.__mhAudioLabel;
+    }
+  }
+
+  document.addEventListener('click', function (e) {
+    var btn = (e.target && e.target.closest)
+      ? e.target.closest('[data-act="aud"], [data-act="aud2"]') : null;
+    if (!btn) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+
+    var id = String(btn.getAttribute('data-a') || '');
+    if (!/^[A-Za-z0-9_-]{10,100}$/.test(id)) {
+      btn.textContent = 'Áudio indisponível';
+      return;
+    }
+
+    /* Arquivos privados precisam da conta Google no navegador integrado. */
+    if (driveLogin || btn.dataset.mhAudioState === 'error') {
+      try { MHAndroid.openExternal(previewDrive(id)); }
+      catch (err) { btn.textContent = 'Não foi possível abrir o áudio'; }
+      return;
+    }
+
+    if (btn.dataset.mhAudioState === 'loading') return;
+    var novoEstado = btn.dataset.mhAudioState === 'playing' ? 'paused' : 'loading';
+    atualizarBotoesAudio(id, novoEstado);
+    try { MHAndroid.toggleDriveAudio(id); }
+    catch (err) { atualizarBotoesAudio(id, 'error'); }
+  }, true);
+
   try {
     var _open = window.open;
     window.open = function (url) {
@@ -255,22 +305,49 @@
       'flex-direction:row;align-items:center;gap:10px;flex-wrap:wrap}' +
       '.mh-android-box.mh-inline button{background:transparent;color:#0B6BCB;' +
       'border:1px solid #CFD8DE;padding:6px 12px;font-size:12px;font-weight:650;border-radius:8px}' +
-      '.mh-android-box.mh-inline small{font-size:11.5px;color:#5A6A78}';
+      '.mh-android-box.mh-inline small{font-size:11.5px;color:#5A6A78}' +
+      /* O quadro 16:9 original corta controles do player do Drive em celulares. */
+      '.vidbox[data-v]{height:58vh!important;min-height:320px!important;max-height:520px!important;' +
+      'aspect-ratio:auto!important;width:100%!important}' +
+      '.vidbox[data-v] iframe{width:100%!important;height:100%!important;border:0!important}';
     (document.head || document.documentElement).appendChild(css);
   } catch (e) {}
 
-  function caixaMidia(url, destaque) {
+  function caixaMidia(url, destaque, host) {
     var box = document.createElement('div');
     box.className = 'mh-android-box' + (destaque ? '' : ' mh-inline');
     var btn = document.createElement('button');
     btn.textContent = destaque ? '▶ Abrir video/PDF no Chrome' : '↗ Abrir no Chrome';
     btn.onclick = function () { MHAndroid.openExternal(url); };
+    box.appendChild(btn);
+
+    if (!destaque && host && host.classList.contains('vidbox') && host.hasAttribute('data-v')) {
+      var ampliar = document.createElement('button');
+      ampliar.textContent = '⛶ Ampliar vídeo';
+      ampliar.setAttribute('aria-label', 'Abrir o vídeo em tela cheia');
+      ampliar.onclick = function () {
+        var frame = host.querySelector('iframe');
+        var pedirTelaCheia = frame && (frame.requestFullscreen || frame.webkitRequestFullscreen);
+        if (pedirTelaCheia) {
+          try {
+            var resultado = pedirTelaCheia.call(frame);
+            if (resultado && typeof resultado.catch === 'function') {
+              resultado.catch(function () { MHAndroid.openExternal(url); });
+            }
+            return;
+          } catch (e) {}
+        }
+        MHAndroid.openExternal(url);
+      };
+      box.appendChild(ampliar);
+    }
+
     var dica = document.createElement('small');
     dica.textContent = destaque
       ? 'O Google pede acesso para este arquivo. Abra no Chrome com sua conta autorizada. ' +
         'O texto da aula continua disponivel aqui embaixo.'
       : 'Se o player acima nao aparecer, toque aqui.';
-    box.appendChild(btn); box.appendChild(dica);
+    box.appendChild(dica);
     return box;
   }
 
@@ -309,7 +386,7 @@
               f.__mhBarElement.parentNode.removeChild(f.__mhBarElement);
             }
             f.__mhBarElement = null;
-            var box = caixaMidia(url, true);
+            var box = caixaMidia(url, true, host);
             if (host) { neutralizarCaixa(host); host.appendChild(box); }
             else {
               if (f.parentNode) f.parentNode.insertBefore(box, f);
@@ -317,9 +394,17 @@
             }
           } else {
             /* Deixa o player tocar aqui; so acrescenta um plano B discreto. */
+            if (host && host.classList.contains('vidbox') && host.hasAttribute('data-v')) {
+              host.style.setProperty('aspect-ratio', 'auto', 'important');
+              host.style.setProperty('height', '58vh', 'important');
+              host.style.setProperty('min-height', '320px', 'important');
+              host.style.setProperty('max-height', '520px', 'important');
+              f.setAttribute('allow', 'autoplay; fullscreen; encrypted-media; picture-in-picture');
+              f.setAttribute('allowfullscreen', '');
+            }
             if (f.__mhBarra) continue;
             f.__mhBarra = 1;
-            var bar = caixaMidia(url, false);
+            var bar = caixaMidia(url, false, host);
             f.__mhBarElement = bar;
             var alvo = host || f;
             if (alvo.parentNode) alvo.parentNode.insertBefore(bar, alvo.nextSibling);

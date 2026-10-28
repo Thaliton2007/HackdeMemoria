@@ -14,17 +14,18 @@ e tocar no arquivo **MemoriaHack.apk**.
 
 O arquivo tem cerca de **4,2 MB** e precisa de **Android 8.0 ou mais novo**.
 
-> **Versão 1.3 (atual)** — o app tenta exibir vídeos e PDFs do Drive **dentro
-> da própria aula**, com tela cheia para vídeos. O vídeo "Opening Class" do
-> print está liberado por link no Drive, então pode tocar no player interno.
-> O link discreto "Abrir no Chrome" fica como plano B. Se um arquivo for
-> privado, o Google exige autenticação: nesse caso ele abre numa **aba
-> integrada** que volta direto para a aula, sem deixar uma aba solta.
+> **Versão 1.4 (atual)** — o botão de áudio foi ajustado para tocar no próprio
+> app, sem deixar o mini-player do Drive aberto na página. O quadro de vídeo
+> fica maior no celular e ganhou o botão **Ampliar vídeo** para facilitar o
+> acesso aos controles do Drive. Se a reprodução direta falhar, há a opção de
+> abrir o arquivo numa **aba integrada**. Arquivos privados continuam exigindo
+> a conta autorizada nessa aba; nenhuma permissão do Drive foi alterada.
 >
-> Versão 1.2 — corrigiu as margens do celular (barra de status/câmera e
-> gestos) e removeu o fundo preto atrás do player. A chave de assinatura é
-> estável desde a versão 1.2, então a atualização instala por cima sem apagar
-> o progresso.
+> Versão 1.3 — player de vídeo/PDF dentro da aula, tela cheia e aba integrada
+> como alternativa para arquivos privados. Versão 1.2 — margens do celular
+> (barra de status/câmera e gestos) e fundo do player corrigidos. A chave de
+> assinatura é estável desde a versão 1.2, então a atualização instala por cima
+> sem apagar o progresso.
 >
 > ⚠️ **Se você já instalou a versão 1.0:** desinstale o app antigo antes de
 > instalar este. Foi preciso trocar a chave de assinatura uma única vez; a
@@ -55,26 +56,28 @@ Pronto: o icone azul **Memoria Hack** fica na sua tela de aplicativos.
   idioma nao tiver voz instalada, va em
   **Configuracoes -> Sistema -> Idiomas -> Sintese de voz** e instale
   espanhol, ingles ou frances.
+- Nos cursos com gravações, toque em **Tocar o áudio** para iniciar. O botão
+  muda para **Pausar áudio** e depois **Continuar áudio**.
 
-## 4. Videos e PDFs
+## 4. Videos, PDFs e audios
 
-Na versao 1.3, arquivos do Drive liberados como **"qualquer pessoa com o
-link"** aparecem no player **dentro da propria aula**, sem abrir outra aba.
-Conferi no Drive que o video **Opening_Class.mp4** (o da tela do print) tem
-essa permissao. Toque no play como no YouTube; o botao de tela cheia tambem
-funciona.
+Na versao 1.4, o quadro do video esta maior no celular e ha um botao
+**"Ampliar vídeo"** junto ao player. O player do Drive oferece os controles
+para pausar, avançar e ajustar a velocidade; o quadro maior e o botao novo
+facilitam chegar neles. **"Abrir no Chrome"** continua como alternativa se o
+video nao aparecer ou a tela cheia nao abrir.
 
-Abaixo do player ha um link discreto **"Abrir no Chrome"** como plano B, caso
-o player interno nao carregue no seu aparelho. Arquivos **privados** precisam
-de autenticacao: o Google nao permite entrar na conta dentro de um WebView.
-Nesses casos, o app mostra o botao de abertura numa **aba integrada** do
-Chrome (com barra azul e botao X), que volta direto para a aula — nao deixa
-uma aba solta no navegador.
+Nos cursos em que o audio esta acessivel por link, **"Tocar o áudio"** inicia
+a reproducao no app, sem deixar o mini-player do Drive aberto na aula. Toque
+novamente para pausar ou continuar. Se o Drive negar a reproducao direta, o
+botao passa a oferecer **"Abrir áudio no Chrome"**. Mídia privada, como a do
+curso de Espanhol, continua exigindo a conta autorizada numa **aba integrada**
+(com barra azul e botao X), que volta direto para a aula.
 
 **Nao alterei as permissoes dos arquivos do Drive.** O material continua la;
-so os itens que ja estao liberados por link podem abrir sem login dentro do
-player. Os videos/PDFs ainda precisam de internet. **O texto das aulas, as
-cartas, os testes e os provoes funcionam sem internet.**
+so os itens ja liberados por link podem abrir sem login. Videos, PDFs e audios
+precisam de internet. **O texto das aulas, as cartas, os testes e os provoes
+funcionam sem internet.**
 
 ## 5. Trazer o progresso do computador (opcional)
 
@@ -93,4 +96,6 @@ gero um APK novo para voce baixar de novo.
 | "App nao instalado" | Apague a versao antiga e instale de novo; confira se tem espaco livre. |
 | Tela branca ao abrir | Feche o app e abra de novo. O curso leva alguns segundos para carregar na primeira vez. |
 | Voz nao fala | Instale a voz do idioma em Configuracoes -> Sintese de voz. |
-| Player nao carregar dentro do app | Toque no link discreto "Abrir no Chrome" abaixo do player. Alguns arquivos privados exigem esse passo. |
+| Audio nao iniciar | Toque novamente em **Abrir áudio no Chrome** se esse botao aparecer; pode ser necessario entrar na conta do Drive. |
+| Video nao carregar ou nao ampliar | Toque em **Abrir no Chrome** abaixo do player. |
+| Player nao carregar dentro do app | Alguns arquivos privados exigem a abertura na aba integrada do Chrome. |

@@ -180,9 +180,9 @@ jobs:
           cat > /tmp/note.md <<'NOTE'
           APK de uso pessoal do Memoria Hack (Espanhol, Ingles e Frances). Baixe **MemoriaHack.apk** abaixo e instale no celular. O passo a passo esta em COMO_INSTALAR_APK.md no repositorio.
 
-          Curso completo embutido: cartas, SRS, testes e provoes funcionam sem internet. Videos/PDFs com link no Drive tentam tocar dentro do app; arquivos privados usam Chrome Custom Tab como fallback.
+          Curso completo embutido: cartas, SRS, testes e provoes funcionam sem internet. Videos/PDFs com link no Drive tentam tocar dentro do app; audios acessiveis por link tocam no player nativo sem mini-player na pagina. Arquivos privados usam Chrome Custom Tab.
 
-          Versao 1.3: player de video/PDF embutido, tela cheia, link discreto de fallback e Chrome Custom Tab para arquivos privados. Mantem as margens seguras e a assinatura estavel da versao 1.2.
+          Versao 1.4: botao de audio inicia no MediaPlayer nativo para arquivos acessiveis por link, sem deixar mini-player do Drive na pagina; arquivos privados continuam na Chrome Custom Tab. Quadro do video ampliado, com botao de tela cheia e controles do player do Drive. Mantem o HTML de producao intacto, as margens seguras e a assinatura estavel.
 
           SHA-256: `__SHA__`
 

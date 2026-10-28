@@ -8,7 +8,9 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Insets;
+import android.media.AudioAttributes;
 import android.media.AudioManager;
+import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -48,8 +50,11 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * Memoria Hack — APK autossuficiente.
@@ -67,6 +72,7 @@ public class MainActivity extends Activity {
             "https://" + ASSET_HOST + "/assets/MemoriaHack_Cursos.html";
     private static final int REQ_FILE = 1001;
     private static final int REQ_AUDIO = 1002;
+    private static final Pattern DRIVE_FILE_ID = Pattern.compile("[A-Za-z0-9_-]{10,100}");
 
     private WebView web;
     private ProgressBar progress;
@@ -78,6 +84,11 @@ public class MainActivity extends Activity {
     private TextToSpeech tts;
     private SpeechRecognizer asr;
     private int ttsSeq = 0;
+
+    private MediaPlayer driveAudioPlayer;
+    private String driveAudioId;
+    private boolean driveAudioPreparado;
+    private int driveAudioSeq;
 
     private FrameLayout telaCheia;
     private WebChromeClient.CustomViewCallback callbackTelaCheia;
@@ -136,6 +147,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        liberarAudioDrive(false);
         if (asr != null) { asr.destroy(); asr = null; }
         if (tts != null) { tts.stop(); tts.shutdown(); tts = null; }
         web.destroy();
@@ -429,6 +441,123 @@ public class MainActivity extends Activity {
     }
 
     // ------------------------------------------------------------------
+    // Audio de aula: toca diretamente no Android sem deixar o iframe do Drive
+    // ocupando a pagina. O fallback para arquivos privados continua sendo a
+    // Chrome Custom Tab, sem tentar autenticar dentro do WebView.
+    // ------------------------------------------------------------------
+    private void alternarAudioDrive(String id) {
+        if (id == null || !DRIVE_FILE_ID.matcher(id).matches()) {
+            if (id != null) disparar("audio", "error", id);
+            return;
+        }
+
+        if (id.equals(driveAudioId) && driveAudioPlayer != null) {
+            if (!driveAudioPreparado) return;
+            try {
+                if (driveAudioPlayer.isPlaying()) {
+                    driveAudioPlayer.pause();
+                    disparar("audio", "paused", id);
+                } else {
+                    driveAudioPlayer.start();
+                    disparar("audio", "playing", id);
+                }
+            } catch (IllegalStateException e) {
+                falharAudioDrive(driveAudioSeq, id);
+            }
+            return;
+        }
+
+        liberarAudioDrive(true);
+        final int seq = ++driveAudioSeq;
+        final String audioId = id;
+        MediaPlayer player = new MediaPlayer();
+        driveAudioPlayer = player;
+        driveAudioId = audioId;
+        driveAudioPreparado = false;
+
+        player.setAudioAttributes(new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                .build());
+        player.setOnPreparedListener(mp -> {
+            if (seq != driveAudioSeq || mp != driveAudioPlayer) {
+                mp.release();
+                return;
+            }
+            driveAudioPreparado = true;
+            try {
+                mp.start();
+                disparar("audio", "playing", audioId);
+            } catch (IllegalStateException e) {
+                falharAudioDrive(seq, audioId);
+            }
+        });
+        player.setOnCompletionListener(mp -> {
+            if (seq != driveAudioSeq || mp != driveAudioPlayer) return;
+            disparar("audio", "ended", audioId);
+            liberarAudioDrive(false);
+        });
+        player.setOnErrorListener((mp, what, extra) -> {
+            if (seq == driveAudioSeq && mp == driveAudioPlayer) {
+                falharAudioDrive(seq, audioId);
+            }
+            return true;
+        });
+        player.setOnInfoListener((mp, what, extra) -> {
+            if (seq != driveAudioSeq || mp != driveAudioPlayer) return false;
+            if (what == MediaPlayer.MEDIA_INFO_BUFFERING_START) {
+                disparar("audio", "loading", audioId);
+            } else if (what == MediaPlayer.MEDIA_INFO_BUFFERING_END && driveAudioPreparado) {
+                disparar("audio", mp.isPlaying() ? "playing" : "paused", audioId);
+            }
+            return false;
+        });
+
+        try {
+            String url = "https://drive.usercontent.google.com/download?id="
+                    + Uri.encode(audioId) + "&export=download&confirm=t";
+            Map<String, String> headers = new HashMap<>();
+            headers.put("Referer", "https://drive.google.com/");
+            if (web != null) headers.put("User-Agent", web.getSettings().getUserAgentString());
+            player.setDataSource(this, Uri.parse(url), headers);
+            disparar("audio", "loading", audioId);
+            player.prepareAsync();
+        } catch (Exception e) {
+            falharAudioDrive(seq, audioId);
+        }
+    }
+
+    private void falharAudioDrive(int seq, String id) {
+        if (seq != driveAudioSeq || driveAudioPlayer == null
+                || !id.equals(driveAudioId)) return;
+        MediaPlayer player = driveAudioPlayer;
+        driveAudioPlayer = null;
+        driveAudioId = null;
+        driveAudioPreparado = false;
+        driveAudioSeq++;
+        try { player.release(); } catch (Exception ignored) { }
+        disparar("audio", "error", id);
+    }
+
+    private void liberarAudioDrive(boolean avisar) {
+        String id = driveAudioId;
+        MediaPlayer player = driveAudioPlayer;
+        driveAudioSeq++;
+        driveAudioPlayer = null;
+        driveAudioId = null;
+        driveAudioPreparado = false;
+        if (player != null) {
+            try { player.setOnPreparedListener(null); } catch (Exception ignored) { }
+            try { player.setOnCompletionListener(null); } catch (Exception ignored) { }
+            try { player.setOnErrorListener(null); } catch (Exception ignored) { }
+            try { player.setOnInfoListener(null); } catch (Exception ignored) { }
+            try { player.stop(); } catch (Exception ignored) { }
+            try { player.release(); } catch (Exception ignored) { }
+        }
+        if (avisar && id != null) disparar("audio", "stopped", id);
+    }
+
+    // ------------------------------------------------------------------
     // Voz nativa
     // ------------------------------------------------------------------
     private void iniciarTts() {
@@ -668,6 +797,11 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void asrStop() {
             runOnUiThread(() -> { if (asr != null) asr.stopListening(); });
+        }
+
+        @JavascriptInterface
+        public void toggleDriveAudio(String id) {
+            runOnUiThread(() -> alternarAudioDrive(id));
         }
 
         @JavascriptInterface
