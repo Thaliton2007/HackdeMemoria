@@ -1,0 +1,91 @@
+name: Gerar APK do Memoria Hack
+
+on:
+  push:
+    branches: [ arena/6424d026-hackdememoria ]
+    paths:
+      - 'app/MemoriaHack_Cursos.html'
+      - 'android/**'
+      - 'ferramentas/gerar_assets_android.py'
+      - '.github/workflows/build-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-apk
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Compilar e publicar APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Baixar codigo
+        uses: actions/checkout@v4
+
+      - name: Conferir HTML de producao
+        run: |
+          echo "MD5 do hub de producao:"
+          md5sum app/MemoriaHack_Cursos.html
+          test "$(md5sum app/MemoriaHack_Cursos.html | cut -d' ' -f1)" = "8e547cddce73df56c23093a253e38dcc"
+
+      - name: Gerar HTML instrumentado para o APK
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python3 ferramentas/gerar_assets_android.py
+
+      - name: Preparar JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Preparar Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Instalar plataforma e build-tools 35
+        run: |
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Preparar Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Compilar APK (debug, ja assinado para instalacao direta)
+        working-directory: android
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Renomear APK
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk MemoriaHack.apk
+          ls -lh MemoriaHack.apk
+          sha256sum MemoriaHack.apk
+
+      - name: Guardar como artefato da execucao
+        uses: actions/upload-artifact@v4
+        with:
+          name: MemoriaHack-APK
+          path: MemoriaHack.apk
+          retention-days: 90
+
+      - name: Publicar link direto de download
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=apk-v1
+          NOTE='APK de uso pessoal do Memoria Hack (Espanhol, Ingles e Frances). Baixe o arquivo MemoriaHack.apk abaixo e instale no celular. Instrucoes em COMO_INSTALAR_APK.md.'
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release edit "$TAG" --notes "$NOTE"
+          else
+            gh release create "$TAG" --target "$GITHUB_SHA" \
+              --title "Memoria Hack - APK" --notes "$NOTE"
+          fi
+          gh release upload "$TAG" MemoriaHack.apk --clobber
+          echo "Link direto: https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/MemoriaHack.apk"

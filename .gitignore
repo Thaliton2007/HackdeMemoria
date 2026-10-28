@@ -9,3 +9,14 @@ __pycache__/
 # Saídas temporárias de auditoria
 auditoria.json
 *.log
+
+# --- Android / APK (artefatos gerados) ---
+android/app/src/main/assets/*.html
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+*.apk
+*.ap_
+*.aab

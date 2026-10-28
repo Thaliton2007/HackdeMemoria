@@ -28,6 +28,28 @@ de idiomas em **HTML único, offline**, construída a partir de três cursos da 
 | `ferramentas/extrair_hub.py` | Extrai os 3 cursos do hub, ou reconstrói o hub a partir deles |
 | `ferramentas/auditar_apps.py` | Mede o estado real dos datasets (cartas, questões, provões, gabarito) |
 
+## APK para Android (projeto novo — 27/10/2026)
+
+O curso também vira um **APK que você baixa e instala no celular**, com os 3 cursos
+**dentro do arquivo** (estuda sem internet). Instruções em linguagem simples:
+**[`COMO_INSTALAR_APK.md`](COMO_INSTALAR_APK.md)**. Download direto:
+`https://github.com/Thaliton2007/HackdeMemoria/releases/download/apk-v1/MemoriaHack.apk`.
+
+| Caminho | O que é |
+|---|---|
+| `android/` | Projeto Android (Java + WebView), origem do APK |
+| `android/bridge/mh_android.js` | Ponte JS: voz nativa, botão Voltar, arquivos e links do Drive |
+| `ferramentas/gerar_assets_android.py` | Injeta a ponte no HTML e gera o `assets/` do APK (não mexe em `app/`) |
+| `.github/workflows/build-apk.yml` | Compila e publica o APK automaticamente no GitHub |
+
+```bash
+python3 ferramentas/gerar_assets_android.py          # gera o HTML instrumentado
+python3 ferramentas/gerar_assets_android.py --verificar
+```
+
+O HTML de produção em `app/` continua intacto (MD5 `8e547cdd…`). Vídeos/PDFs do Drive
+abrem no Chrome, onde a conta do Google já está logada.
+
 ## Como usar o app
 
 1. Abra `app/MemoriaHack_Cursos.html` no navegador (funciona offline, sem servidor).
