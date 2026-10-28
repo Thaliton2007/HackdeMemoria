@@ -12,7 +12,7 @@ Voce tambem pode abrir a pagina
 https://github.com/Thaliton2007/HackdeMemoria/releases
 e tocar no arquivo **MemoriaHack.apk**.
 
-O arquivo tem mais ou menos **12 MB**.
+O arquivo tem cerca de **3,5 MB** e precisa de **Android 8.0 ou mais novo**.
 
 ## 2. Instalar
 
@@ -45,11 +45,15 @@ botao **"Abrir video/PDF no Chrome"** — toque nele e o conteudo abre no
 Chrome, onde sua conta do Google ja esta logada. Isso precisa de internet.
 **O texto das aulas, as cartas, os testes e os provoes funcionam sem internet.**
 
-## 5. Trazer o progresso do computador
+## 5. Trazer o progresso do computador (opcional)
 
-No computador, abra o Memoria Hack e use **Exportar progresso** (gera um
-arquivo `.json`). Envie esse arquivo para o celular (WhatsApp, e-mail, Drive).
-No celular, abra o app e use **Importar progresso**, escolhendo o arquivo.
+O curso de **Espanhol** tem os botoes **Exportar progresso** e **Importar
+progresso**. No computador, exporte (gera um arquivo `.json`), envie para o
+celular (WhatsApp, e-mail, Drive) e importe dentro do app. Ingles e Frances
+ainda nao tem esse botao, entao o progresso deles comeca do zero no celular.
+
+Se algo nao funcionar, me avise **qual curso** e **qual botao** — eu ajusto e
+gero um APK novo para voce baixar de novo.
 
 ## Duvidas comuns
 
