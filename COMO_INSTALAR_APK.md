@@ -12,7 +12,7 @@ Voce tambem pode abrir a pagina
 https://github.com/Thaliton2007/HackdeMemoria/releases
 e tocar no arquivo **MemoriaHack.apk**.
 
-O arquivo tem cerca de **4,2 MB** e precisa de **Android 8.0 ou mais novo**.
+O arquivo tem cerca de **4,4 MB** e precisa de **Android 8.0 ou mais novo**.
 
 > **Versão 1.4 (atual)** — o botão de áudio foi ajustado para tocar no próprio
 > app, sem deixar o mini-player do Drive aberto na página. O quadro de vídeo
