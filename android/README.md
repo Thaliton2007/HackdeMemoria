@@ -30,6 +30,23 @@ gradle :app:assembleDebug
 
 Ou abra a pasta `android/` no Android Studio e use **Run**.
 
+## Assinatura estavel (v1.2)
+
+O `debug.keystore` padrao e criado por maquina. Como cada execucao do GitHub
+Actions usa um runner novo, cada APK sairia com um certificado diferente e o
+Android recusaria instalar a atualizacao ("App nao instalado"). O workflow
+resolve assim: na primeira execucao gera `memoriahack.jks` com `keytool` e
+publica o arquivo numa Release tecnica separada (`build-key`); nas seguintes
+baixa essa mesma chave e a injeta no Gradle via
+`-Pandroid.injected.signing.*`. A Release que o usuario ve (`apk-v1`) continua
+com um unico arquivo: `MemoriaHack.apk`.
+
+Para confirmar que duas versoes usam o mesmo certificado:
+
+```bash
+apksigner verify --print-certs MemoriaHack.apk | grep -i fingerprint
+```
+
 ## Margens de seguranca (v1.1)
 
 O HTML de producao usa `viewport-fit=cover`. Com `targetSdk 35`, o Android 15+

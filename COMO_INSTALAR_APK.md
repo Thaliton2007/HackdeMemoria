@@ -14,10 +14,15 @@ e tocar no arquivo **MemoriaHack.apk**.
 
 O arquivo tem cerca de **3,5 MB** e precisa de **Android 8.0 ou mais novo**.
 
-> **Versão 1.1 (atual)** — corrige as margens do celular: o conteúdo não fica
+> **Versão 1.2 (atual)** — corrige as margens do celular: o conteúdo não fica
 > mais atrás da barra de status/câmera nem sob a barra de gestos, e o fundo
-> preto que aparecia atrás do botão de vídeo foi removido. Se você instalou a
-> versão 1.0, é só baixar e instalar de novo por cima (o progresso é mantido).
+> preto que aparecia atrás do botão de vídeo foi removido.
+>
+> ⚠️ **Se você já instalou a versão 1.0:** desinstale o app antigo antes de
+> instalar este. Foi preciso trocar a chave de assinatura uma única vez; a
+> partir da versão 1.2 todas as próximas atualizações instalam por cima, sem
+> desinstalar e sem perder o progresso. Para desinstalar: pressione o ícone do
+> app → **Desinstalar**.
 
 ## 2. Instalar
 
