@@ -227,9 +227,9 @@
   /* ------------------------------------------------------------------
      5. Midia do Drive DENTRO do app.
         Arquivos de audio compartilhados por link tocam no MediaPlayer nativo,
-        sem inserir o mini-player do Drive na pagina. O acervo privado de
-        Espanhol continua abrindo na Chrome Custom Tab integrada. Para video,
-        mantemos o preview do Drive, ampliado para deixar os controles visiveis.
+        sem inserir o mini-player do Drive na pagina. Videos publicos usam o
+        player nativo Android em tela cheia; arquivos privados continuam na
+        Chrome Custom Tab integrada, sem tentar autenticar dentro do WebView.
      ------------------------------------------------------------------ */
   function previewDrive(id) {
     return 'https://drive.google.com/file/d/' + encodeURIComponent(id) + '/preview';
@@ -250,6 +250,35 @@
       else btn.textContent = btn.__mhAudioLabel;
     }
   }
+
+  document.addEventListener('click', function (e) {
+    var btn = (e.target && e.target.closest)
+      ? e.target.closest('[data-act="play"][data-v]') : null;
+    if (!btn) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+
+    var id = String(btn.getAttribute('data-v') || '');
+    if (!/^[A-Za-z0-9_-]{10,100}$/.test(id)) {
+      MHAndroid.toast('Este vídeo não está disponível.');
+      return;
+    }
+
+    /* Conteúdo privado: abrir no navegador integrado, sem tentar login no WebView. */
+    if (driveLogin) {
+      try { MHAndroid.openExternal(previewDrive(id)); }
+      catch (err) { MHAndroid.toast('Não foi possível abrir o vídeo.'); }
+      return;
+    }
+
+    var card = btn.closest('.vidbtn');
+    var info = card && card.querySelector('.vs');
+    var titulo = info ? String(info.textContent || '').split('·')[0].trim() : 'Vídeo da aula';
+    try { MHAndroid.playDriveVideo(id, titulo); }
+    catch (err) { MHAndroid.openExternal(previewDrive(id)); }
+  }, true);
 
   document.addEventListener('click', function (e) {
     var btn = (e.target && e.target.closest)
@@ -305,43 +334,17 @@
       'flex-direction:row;align-items:center;gap:10px;flex-wrap:wrap}' +
       '.mh-android-box.mh-inline button{background:transparent;color:#0B6BCB;' +
       'border:1px solid #CFD8DE;padding:6px 12px;font-size:12px;font-weight:650;border-radius:8px}' +
-      '.mh-android-box.mh-inline small{font-size:11.5px;color:#5A6A78}' +
-      /* Usa a largura interna do cartao e preserva o formato 16:9 do video. */
-      '.vidbox.mh-video-fit{height:auto!important;min-height:0!important;max-height:none!important;' +
-      'aspect-ratio:16/9!important;width:calc(100% + 48px)!important;margin-left:-24px!important;' +
-      'box-sizing:border-box!important}' +
-      '.vidbox.mh-video-fit iframe{width:100%!important;height:100%!important;border:0!important}';
+      '.mh-android-box.mh-inline small{font-size:11.5px;color:#5A6A78}';
     (document.head || document.documentElement).appendChild(css);
   } catch (e) {}
 
-  function caixaMidia(url, destaque, host) {
+  function caixaMidia(url, destaque) {
     var box = document.createElement('div');
     box.className = 'mh-android-box' + (destaque ? '' : ' mh-inline');
     var btn = document.createElement('button');
-    btn.textContent = destaque ? '▶ Abrir video/PDF no Chrome' : '↗ Abrir no Chrome';
+    btn.textContent = destaque ? '▶ Abrir vídeo/PDF no Chrome' : '↗ Abrir no Chrome';
     btn.onclick = function () { MHAndroid.openExternal(url); };
     box.appendChild(btn);
-
-    if (!destaque && host && host.classList.contains('vidbox') && host.hasAttribute('data-v')) {
-      var ampliar = document.createElement('button');
-      ampliar.textContent = '⛶ Ampliar vídeo';
-      ampliar.setAttribute('aria-label', 'Abrir o vídeo em tela cheia');
-      ampliar.onclick = function () {
-        var frame = host.querySelector('iframe');
-        var pedirTelaCheia = frame && (frame.requestFullscreen || frame.webkitRequestFullscreen);
-        if (pedirTelaCheia) {
-          try {
-            var resultado = pedirTelaCheia.call(frame);
-            if (resultado && typeof resultado.catch === 'function') {
-              resultado.catch(function () { MHAndroid.openExternal(url); });
-            }
-            return;
-          } catch (e) {}
-        }
-        MHAndroid.openExternal(url);
-      };
-      box.appendChild(ampliar);
-    }
 
     var dica = document.createElement('small');
     dica.textContent = destaque
@@ -387,7 +390,7 @@
               f.__mhBarElement.parentNode.removeChild(f.__mhBarElement);
             }
             f.__mhBarElement = null;
-            var box = caixaMidia(url, true, host);
+            var box = caixaMidia(url, true);
             if (host) { neutralizarCaixa(host); host.appendChild(box); }
             else {
               if (f.parentNode) f.parentNode.insertBefore(box, f);
@@ -395,21 +398,9 @@
             }
           } else {
             /* Deixa o player tocar aqui; so acrescenta um plano B discreto. */
-            if (host && host.classList.contains('vidbox') && host.hasAttribute('data-v')) {
-              host.classList.add('mh-video-fit');
-              host.style.setProperty('aspect-ratio', '16 / 9', 'important');
-              host.style.setProperty('height', 'auto', 'important');
-              host.style.setProperty('min-height', '0', 'important');
-              host.style.setProperty('max-height', 'none', 'important');
-              host.style.setProperty('width', 'calc(100% + 48px)', 'important');
-              host.style.setProperty('margin-left', '-24px', 'important');
-              host.style.setProperty('box-sizing', 'border-box', 'important');
-              f.setAttribute('allow', 'autoplay; fullscreen; encrypted-media; picture-in-picture');
-              f.setAttribute('allowfullscreen', '');
-            }
             if (f.__mhBarra) continue;
             f.__mhBarra = 1;
-            var bar = caixaMidia(url, false, host);
+            var bar = caixaMidia(url, false);
             f.__mhBarElement = bar;
             var alvo = host || f;
             if (alvo.parentNode) alvo.parentNode.insertBefore(bar, alvo.nextSibling);

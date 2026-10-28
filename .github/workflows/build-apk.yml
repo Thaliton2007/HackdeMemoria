@@ -180,9 +180,9 @@ jobs:
           cat > /tmp/note.md <<'NOTE'
           APK de uso pessoal do Memoria Hack (Espanhol, Ingles e Frances). Baixe **MemoriaHack.apk** abaixo e instale no celular. O passo a passo esta em COMO_INSTALAR_APK.md no repositorio.
 
-          Curso completo embutido: cartas, SRS, testes e provoes funcionam sem internet. Videos/PDFs com link no Drive tentam tocar dentro do app; audios acessiveis por link tocam no player nativo sem mini-player na pagina. Arquivos privados usam Chrome Custom Tab.
+          Curso completo embutido: cartas, SRS, testes e provoes funcionam sem internet. Videos acessiveis por link tentam tocar no player nativo; PDFs com link abrem dentro da aula; audios acessiveis por link tocam no player nativo sem mini-player na pagina. Arquivos privados usam Chrome Custom Tab.
 
-          Versao 1.5: audio acessivel por link toca no MediaPlayer nativo, sem mini-player do Drive; arquivos privados continuam na Chrome Custom Tab. Moldura do video preserva o formato 16:9 e ocupa melhor a largura do celular, com botao de tela cheia. Mantem o HTML de producao intacto, as margens seguras e a assinatura estavel.
+          Versao 1.6: videos acessiveis por link abrem no player Android nativo em tela cheia, com pausa, barra de busca, avanco/retrocesso de 10 segundos e velocidades de 0,5x a 2x. Arquivos privados ou falhas no stream oferecem a Chrome Custom Tab. Audios acessiveis por link continuam no MediaPlayer nativo sem mini-player. Mantem o HTML de producao intacto, os 3 idiomas, as margens seguras, as permissoes atuais do Drive e a assinatura estavel.
 
           SHA-256: `__SHA__`
 

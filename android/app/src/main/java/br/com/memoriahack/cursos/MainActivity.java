@@ -3,14 +3,17 @@ package br.com.memoriahack.cursos;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.Dialog;
 import android.content.ContentValues;
 import android.content.Intent;
+import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Insets;
 import android.media.AudioAttributes;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
+import android.media.PlaybackParams;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -21,12 +24,15 @@ import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
+import android.text.TextUtils;
 import android.util.Base64;
 import android.view.DisplayCutout;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
 import android.view.WindowInsets;
+import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
@@ -40,8 +46,12 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
+import android.widget.LinearLayout;
+import android.widget.MediaController;
 import android.widget.ProgressBar;
+import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.VideoView;
 
 import androidx.browser.customtabs.CustomTabsIntent;
 import androidx.webkit.WebViewAssetLoader;
@@ -89,6 +99,15 @@ public class MainActivity extends Activity {
     private String driveAudioId;
     private boolean driveAudioPreparado;
     private int driveAudioSeq;
+
+    private Dialog videoDialog;
+    private VideoView videoView;
+    private MediaPlayer videoMediaPlayer;
+    private TextView videoSpeedButton;
+    private String videoIdAtual;
+    private float videoSpeed = 1.0f;
+    private int orientacaoAntesDoVideo = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+    private boolean orientacaoDoVideoAtiva;
 
     private FrameLayout telaCheia;
     private WebChromeClient.CustomViewCallback callbackTelaCheia;
@@ -146,7 +165,16 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onPause() {
+        if (videoView != null) {
+            try { if (videoView.isPlaying()) videoView.pause(); } catch (Exception ignored) { }
+        }
+        super.onPause();
+    }
+
+    @Override
     protected void onDestroy() {
+        fecharVideoDrive();
         liberarAudioDrive(false);
         if (asr != null) { asr.destroy(); asr = null; }
         if (tts != null) { tts.stop(); tts.shutdown(); tts = null; }
@@ -424,6 +452,7 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
+        if (videoDialog != null && videoDialog.isShowing()) { fecharVideoDrive(); return; }
         if (telaCheia != null) { esconderTelaCheia(); return; }
         web.evaluateJavascript(
                 "(function(){try{return !!(window.__mhBackPressed&&window.__mhBackPressed());}"
@@ -438,6 +467,245 @@ public class MainActivity extends Activity {
                             .setNegativeButton("Continuar estudando", null)
                             .show();
                 });
+    }
+
+    // ------------------------------------------------------------------
+    // Video: player nativo em tela cheia, com busca e velocidade.
+    // Links privados continuam no player do Drive via Chrome Custom Tab.
+    // ------------------------------------------------------------------
+    private void abrirVideoDrive(String id, String titulo) {
+        if (id == null || !DRIVE_FILE_ID.matcher(id).matches()) {
+            toast("Este vídeo não está disponível.");
+            return;
+        }
+
+        fecharVideoDrive();
+        liberarAudioDrive(true);
+        videoIdAtual = id;
+        videoSpeed = 1.0f;
+        orientacaoAntesDoVideo = getRequestedOrientation();
+        orientacaoDoVideoAtiva = true;
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+
+        final Dialog dialog = new Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+
+        FrameLayout tela = new FrameLayout(this);
+        tela.setBackgroundColor(Color.BLACK);
+
+        final VideoView video = new VideoView(this);
+        video.setBackgroundColor(Color.BLACK);
+        videoView = video;
+        tela.addView(video, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                Gravity.CENTER));
+
+        ProgressBar carregando = new ProgressBar(this);
+        FrameLayout.LayoutParams carregandoLp = new FrameLayout.LayoutParams(dp(52), dp(52), Gravity.CENTER);
+        tela.addView(carregando, carregandoLp);
+
+        LinearLayout barra = new LinearLayout(this);
+        barra.setOrientation(LinearLayout.HORIZONTAL);
+        barra.setGravity(Gravity.CENTER_VERTICAL);
+        barra.setPadding(dp(8), dp(4), dp(8), dp(4));
+        barra.setBackgroundColor(Color.argb(185, 0, 0, 0));
+
+        TextView fechar = botaoVideo("×", 24);
+        fechar.setContentDescription("Fechar vídeo");
+        barra.addView(fechar, new LinearLayout.LayoutParams(dp(48), ViewGroup.LayoutParams.MATCH_PARENT));
+        fechar.setOnClickListener(v -> fecharVideoDrive());
+
+        TextView nome = new TextView(this);
+        String nomeSeguro = titulo == null ? "" : titulo.replaceAll("[\\r\\n]", " ").trim();
+        nome.setText(nomeSeguro.isEmpty() ? "Vídeo da aula" : nomeSeguro);
+        nome.setTextColor(Color.WHITE);
+        nome.setTextSize(15);
+        nome.setSingleLine(true);
+        nome.setEllipsize(TextUtils.TruncateAt.END);
+        nome.setGravity(Gravity.CENTER_VERTICAL);
+        barra.addView(nome, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1));
+
+        TextView voltar10 = botaoVideo("−10s", 14);
+        voltar10.setContentDescription("Voltar 10 segundos");
+        barra.addView(voltar10, new LinearLayout.LayoutParams(dp(58), ViewGroup.LayoutParams.MATCH_PARENT));
+        voltar10.setOnClickListener(v -> {
+            if (videoView == video) {
+                video.seekTo(Math.max(0, video.getCurrentPosition() - 10000));
+            }
+        });
+
+        videoSpeedButton = botaoVideo("1×", 15);
+        videoSpeedButton.setContentDescription("Velocidade de reprodução");
+        barra.addView(videoSpeedButton, new LinearLayout.LayoutParams(dp(52), ViewGroup.LayoutParams.MATCH_PARENT));
+        videoSpeedButton.setOnClickListener(v -> mostrarVelocidadesVideo());
+
+        TextView avancar10 = botaoVideo("+10s", 14);
+        avancar10.setContentDescription("Avançar 10 segundos");
+        barra.addView(avancar10, new LinearLayout.LayoutParams(dp(58), ViewGroup.LayoutParams.MATCH_PARENT));
+        avancar10.setOnClickListener(v -> {
+            if (videoView == video) {
+                int atual = video.getCurrentPosition();
+                int duracao = video.getDuration();
+                video.seekTo(duracao > 0 ? Math.min(duracao, atual + 10000) : atual + 10000);
+            }
+        });
+
+        FrameLayout.LayoutParams barraLp = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(56), Gravity.TOP);
+        tela.addView(barra, barraLp);
+
+        videoDialog = dialog;
+        dialog.setContentView(tela);
+        dialog.setOnDismissListener(ignorado -> finalizarVideoDrive(dialog, video));
+
+        MediaController controles = new MediaController(this);
+        controles.setAnchorView(video);
+        video.setMediaController(controles);
+        video.setOnPreparedListener(mp -> {
+            if (videoView != video || !id.equals(videoIdAtual)) return;
+            videoMediaPlayer = mp;
+            carregando.setVisibility(View.GONE);
+            aplicarVelocidadeVideo(videoSpeed, rotuloVelocidade(videoSpeed));
+            video.start();
+            controles.show(6000);
+        });
+        video.setOnErrorListener((mp, what, extra) -> {
+            erroVideoDrive(id);
+            return true;
+        });
+
+        dialog.show();
+        Window janela = dialog.getWindow();
+        if (janela != null) configurarJanelaVideo(janela);
+
+        try {
+            String url = "https://drive.usercontent.google.com/download?id="
+                    + Uri.encode(id) + "&export=download&confirm=t";
+            Map<String, String> headers = new HashMap<>();
+            headers.put("Referer", "https://drive.google.com/");
+            if (web != null) headers.put("User-Agent", web.getSettings().getUserAgentString());
+            video.setVideoURI(Uri.parse(url), headers);
+        } catch (Exception e) {
+            erroVideoDrive(id);
+        }
+    }
+
+    private TextView botaoVideo(String texto, float tamanho) {
+        TextView botao = new TextView(this);
+        botao.setText(texto);
+        botao.setTextColor(Color.WHITE);
+        botao.setTextSize(tamanho);
+        botao.setGravity(Gravity.CENTER);
+        botao.setPadding(dp(6), dp(4), dp(6), dp(4));
+        botao.setBackgroundColor(Color.TRANSPARENT);
+        botao.setClickable(true);
+        botao.setFocusable(true);
+        return botao;
+    }
+
+    private void mostrarVelocidadesVideo() {
+        if (videoMediaPlayer == null) return;
+        final float[] velocidades = {0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f};
+        final String[] rotulos = {"0,5×", "0,75×", "1×", "1,25×", "1,5×", "2×"};
+        int selecionado = 2;
+        for (int i = 0; i < velocidades.length; i++) {
+            if (Math.abs(velocidades[i] - videoSpeed) < 0.01f) { selecionado = i; break; }
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("Velocidade do vídeo")
+                .setSingleChoiceItems(rotulos, selecionado, (dialog, qual) -> {
+                    aplicarVelocidadeVideo(velocidades[qual], rotulos[qual]);
+                    dialog.dismiss();
+                })
+                .setNegativeButton("Cancelar", null)
+                .show();
+    }
+
+    private String rotuloVelocidade(float velocidade) {
+        if (Math.abs(velocidade - 0.5f) < 0.01f) return "0,5×";
+        if (Math.abs(velocidade - 0.75f) < 0.01f) return "0,75×";
+        if (Math.abs(velocidade - 1.25f) < 0.01f) return "1,25×";
+        if (Math.abs(velocidade - 1.5f) < 0.01f) return "1,5×";
+        if (Math.abs(velocidade - 2.0f) < 0.01f) return "2×";
+        return "1×";
+    }
+
+    private void aplicarVelocidadeVideo(float velocidade, String rotulo) {
+        videoSpeed = velocidade;
+        if (videoSpeedButton != null) videoSpeedButton.setText(rotulo);
+        if (videoMediaPlayer != null) {
+            try {
+                videoMediaPlayer.setPlaybackParams(new PlaybackParams().setSpeed(velocidade));
+            } catch (Exception e) {
+                toast("Não foi possível alterar a velocidade neste vídeo.");
+            }
+        }
+    }
+
+    private void configurarJanelaVideo(Window janela) {
+        janela.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+        janela.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        if (Build.VERSION.SDK_INT >= 30) {
+            WindowInsetsController barras = janela.getInsetsController();
+            if (barras != null) {
+                barras.hide(WindowInsets.Type.systemBars());
+                barras.setSystemBarsBehavior(
+                        WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            }
+        } else {
+            janela.getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                    | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+        }
+    }
+
+    private void erroVideoDrive(String id) {
+        if (id == null || !id.equals(videoIdAtual)) return;
+        fecharVideoDrive();
+        new AlertDialog.Builder(this)
+                .setTitle("Não consegui abrir o vídeo")
+                .setMessage("Quer tentar pelo player do Google Drive? Se pedir, entre na conta autorizada.")
+                .setPositiveButton("Abrir no Drive", (dialog, qual) -> abrirFora(urlPreviewDrive(id)))
+                .setNegativeButton("Voltar", null)
+                .show();
+    }
+
+    private String urlPreviewDrive(String id) {
+        return "https://drive.google.com/file/d/" + Uri.encode(id) + "/preview";
+    }
+
+    private void fecharVideoDrive() {
+        Dialog dialog = videoDialog;
+        if (dialog != null && dialog.isShowing()) dialog.dismiss();
+        if (dialog == null || videoDialog == dialog) {
+            finalizarVideoDrive(dialog, videoView);
+        }
+    }
+
+    private void finalizarVideoDrive(Dialog dialog, VideoView video) {
+        boolean atual = dialog == null || dialog == videoDialog || video == videoView;
+        if (!atual) {
+            if (video != null) {
+                try { video.stopPlayback(); } catch (Exception ignored) { }
+            }
+            return;
+        }
+        if (videoDialog == dialog || dialog == null) videoDialog = null;
+        if (videoView == video || dialog == null) videoView = null;
+        videoMediaPlayer = null;
+        videoSpeedButton = null;
+        videoIdAtual = null;
+        if (video != null) {
+            try { video.stopPlayback(); } catch (Exception ignored) { }
+        }
+        if (orientacaoDoVideoAtiva) {
+            orientacaoDoVideoAtiva = false;
+            if (!isFinishing() && !isDestroyed()) {
+                setRequestedOrientation(orientacaoAntesDoVideo);
+            }
+        }
     }
 
     // ------------------------------------------------------------------
@@ -802,6 +1070,11 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void toggleDriveAudio(String id) {
             runOnUiThread(() -> alternarAudioDrive(id));
+        }
+
+        @JavascriptInterface
+        public void playDriveVideo(String id, String title) {
+            runOnUiThread(() -> abrirVideoDrive(id, title));
         }
 
         @JavascriptInterface

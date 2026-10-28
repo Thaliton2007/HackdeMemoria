@@ -63,22 +63,23 @@ a faixa da barra de status e `windowLightStatusBar=true` mantem os icones do
 sistema legiveis. Para midia privada, o bridge tambem neutraliza `.vidbox`/
 `.pdfbox` (caixas pretas 16:9) ao trocar o iframe pelo botao "Abrir no Chrome".
 
-## Midia do Drive dentro do app (v1.5)
+## Midia do Drive dentro do app (v1.6)
 
 O HTML original continua intacto; a ponte do APK intercepta os botoes de
-audio dos cursos. Para arquivos acessiveis por link, o app usa o `MediaPlayer`
-nativo e o link direto de download/stream do Drive: o toque inicia o audio,
-e o mesmo botao permite pausar e continuar sem inserir o mini-player na pagina.
-Se a reproducao direta falhar, o botao passa a abrir o `/preview` numa **Chrome
-Custom Tab**. Para o acervo privado de Espanhol, o clique vai direto para essa
-aba integrada, sem tentar autenticar dentro do WebView.
+midia, e a ponte e injetada apenas na copia que vai para o APK. Para audios
+acessiveis por link, o app usa o `MediaPlayer` nativo e o link direto de
+download/stream do Drive: o toque inicia o audio, e o mesmo botao permite
+pausar e continuar sem inserir o mini-player na pagina. Se a reproducao direta
+falhar, o botao oferece abrir o `/preview` numa **Chrome Custom Tab**.
 
-Para videos, o APK mantem o player oficial `/preview` dentro do curso. A moldura
-preserva o formato 16:9 e se estende ate as bordas internas do cartao, para
-aproveitar melhor a largura disponivel sem criar barras pretas excessivas. O
-botao **Ampliar video** solicita tela cheia, tratada pelo WebChromeClient.
-**Pausar, avancar e velocidade continuam sob controle do player do Drive**; a
-ponte nao tenta inspecionar nem modificar o iframe de outro dominio.
+Para videos publicos, o botao **Assistir** abre um `VideoView` Android em tela
+cheia e na horizontal. Os controles nativos incluem pausar/continuar e a barra
+para buscar qualquer ponto; a barra superior acrescenta voltar/avancar 10
+segundos e ajuste de velocidade (0,5× a 2× via `PlaybackParams`). O video e
+transmitido direto do Drive e nao fica embutido na pagina. Se o stream direto
+falhar, uma mensagem oferece abrir `/preview` na Chrome Custom Tab. Conteudo
+privado, incluindo o acervo privado de Espanhol, vai direto para essa aba
+integrada, sem tentar autenticar dentro do WebView.
 
 Os arquivos de audio, video e PDF continuam hospedados no Drive. **Nenhuma
 permissao foi alterada.** O video `Opening_Class.mp4` tem permissao
@@ -96,7 +97,7 @@ direto para a aula, nao uma aba solta no navegador.
 | `SpeechRecognition` (falar) | Nao implementado | `SpeechRecognizer` + shim JS |
 | `getUserMedia` (gravar voz) | Precisa de permissao explicita | `onPermissionRequest` + `RECORD_AUDIO` |
 | Audio no Drive | Iframe deixava mini-player visivel e nao iniciava sozinho | `MediaPlayer` nativo para arquivos acessiveis; Custom Tab para privado ou em falha |
-| Video no Drive em iframe | Moldura interna estreita e controles cortados no celular | 16:9 usando a largura do cartao + botao Ampliar; fullscreen no WebChromeClient |
+| Video no Drive | Iframe estreito e controles cortados no celular | `VideoView` nativo em tela cheia; pausa, busca, ±10s e velocidade; Custom Tab no privado ou se o stream falhar |
 | Botao Voltar | Navegacao do app nao cria historico | Pilha de paginas por frame + `__mhBackPressed` |
 | Exportar progresso (`Blob` + `download`) | WebView nao salva blob | `saveFile()` via MediaStore -> Downloads |
 | Importar progresso (`<input type=file>`) | Precisa de chooser nativo | `onShowFileChooser` + `onActivityResult` |

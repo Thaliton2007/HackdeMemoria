@@ -47,9 +47,10 @@ python3 ferramentas/gerar_assets_android.py          # gera o HTML instrumentado
 python3 ferramentas/gerar_assets_android.py --verificar
 ```
 
-O HTML de produção em `app/` continua intacto (MD5 `8e547cdd…`). Na versão APK 1.3,
-vídeos/PDFs com link de visualização abrem no player **dentro do app**; os privados podem
-usar uma Chrome Custom Tab integrada, sem expor as permissões do Drive.
+O HTML de produção em `app/` continua intacto (MD5 `8e547cdd…`). No APK 1.6,
+vídeos públicos abrem em um player Android nativo em tela cheia, com pausa, busca,
+avanço e velocidade. Arquivos privados ou falhas de reprodução usam uma Chrome
+Custom Tab integrada, sem alterar as permissões do Drive.
 
 ## Como usar o app
 

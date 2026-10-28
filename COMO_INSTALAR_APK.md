@@ -14,15 +14,17 @@ e tocar no arquivo **MemoriaHack.apk**.
 
 O arquivo tem cerca de **4,4 MB** e precisa de **Android 8.0 ou mais novo**.
 
-> **Versão 1.5 (atual)** — mantém o áudio no próprio app, sem deixar o
-> mini-player do Drive aberto. O vídeo preserva o formato 16:9, ocupa melhor a
-> largura do celular e tem o botão **Ampliar vídeo**, para reduzir o corte dos
-> controles. Se a reprodução direta falhar, há a opção de abrir o arquivo numa
-> **aba integrada**. Arquivos privados continuam exigindo a conta autorizada;
-> nenhuma permissão do Drive foi alterada.
+> **Versão 1.6 (atual)** — os vídeos públicos abrem em um player Android
+> nativo, em tela cheia. Ele tem pausar/continuar, barra para escolher o ponto
+> do vídeo, botões de voltar/avançar 10 segundos e ajuste de velocidade. Se o
+> Drive não permitir a reprodução direta, o app oferece abrir o vídeo na aba
+> integrada do Drive. Áudios acessíveis por link continuam tocando no app sem
+> mini-player. Arquivos privados continuam pedindo a conta autorizada; nenhuma
+> permissão do Drive foi alterada.
 >
-> Versão 1.4 — áudio no player nativo e quadro de vídeo ampliado. Versão 1.3 —
-> player de vídeo/PDF dentro da aula e aba integrada para arquivos privados.
+> Versão 1.5 — o ajuste anterior de tamanho do player não resolveu os controles
+> do vídeo; foi substituído nesta versão. Versão 1.4 — áudio no player nativo.
+> Versão 1.3 — vídeo/PDF dentro da aula e aba integrada para arquivos privados.
 > Versão 1.2 — margens do celular e fundo do player corrigidos. A chave de
 > assinatura é estável desde a versão 1.2, então a atualização instala por cima
 > sem apagar o progresso.
@@ -62,11 +64,12 @@ Pronto: o icone azul **Memoria Hack** fica na sua tela de aplicativos.
 
 ## 4. Videos, PDFs e audios
 
-Na versao 1.5, a moldura do video mantem o formato **16:9** e aproveita melhor
-a largura do cartao no celular, para evitar excesso de barras pretas e dar mais
-espaco aos controles. Use o botao **"Ampliar vídeo"** para tela cheia. O player
-do Drive oferece pausar, avançar e ajustar a velocidade; **"Abrir no Chrome"**
-continua como alternativa se o video nao aparecer ou nao ampliar.
+Na versao 1.6, toque em **"Assistir"** para abrir o video publico em tela cheia,
+na horizontal. Toque na imagem para mostrar os controles: pausar/continuar e
+barra de progresso na parte de baixo; **−10s**, **+10s** e velocidade na barra
+de cima. Se a reproducao direta falhar, escolha **"Abrir no Drive"** na mensagem
+que aparece. Videos privados abrem direto na aba integrada e podem pedir a
+conta autorizada.
 
 Nos cursos em que o audio esta acessivel por link, **"Tocar o áudio"** inicia
 a reproducao no app, sem deixar o mini-player do Drive aberto na aula. Toque
@@ -98,5 +101,5 @@ gero um APK novo para voce baixar de novo.
 | Tela branca ao abrir | Feche o app e abra de novo. O curso leva alguns segundos para carregar na primeira vez. |
 | Voz nao fala | Instale a voz do idioma em Configuracoes -> Sintese de voz. |
 | Audio nao iniciar | Toque novamente em **Abrir áudio no Chrome** se esse botao aparecer; pode ser necessario entrar na conta do Drive. |
-| Video nao carregar ou nao ampliar | Toque em **Abrir no Chrome** abaixo do player. |
-| Player nao carregar dentro do app | Alguns arquivos privados exigem a abertura na aba integrada do Chrome. |
+| Video nao iniciar no player nativo | Toque em **Abrir no Drive** na mensagem de erro; o Drive pode pedir a conta autorizada. |
+| Arquivo privado pedir login | Entre na conta autorizada na aba integrada; o app nao tenta fazer login dentro da aula. |
