@@ -53,20 +53,16 @@ jobs:
           set -x
           SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
           if [ -z "$SDK" ] || [ ! -d "$SDK" ]; then SDK=/usr/local/lib/android/sdk; fi
-          echo "ANDROID_HOME=$SDK"      >> "$GITHUB_ENV"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
           echo "sdk.dir=$SDK" > android/local.properties
           echo "SDK=$SDK"
           ls -la "$SDK" || true
-          find "$SDK" -maxdepth 5 -name sdkmanager -type f 2>/dev/null | head
           SM="$SDK/cmdline-tools/latest/bin/sdkmanager"
           if [ ! -x "$SM" ]; then
             echo "sdkmanager ausente; baixando command line tools do Google"
-            mkdir -p "$SDK/cmdline-tools"
-            curl -fsSL -o /tmp/cmdline.zip \
-              https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-            rm -rf "$SDK/cmdline-tools/tmpdl"
             mkdir -p "$SDK/cmdline-tools/tmpdl"
+            curl -fsSL -o /tmp/cmdline.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
             unzip -q -o /tmp/cmdline.zip -d "$SDK/cmdline-tools/tmpdl"
             rm -rf "$SDK/cmdline-tools/latest"
             mkdir -p "$SDK/cmdline-tools/latest"
@@ -133,9 +129,6 @@ jobs:
           set -e
           TAG=apk-v1
           SHA256=$(cat /tmp/apk_sha256)
-          # Copia o APK como git blob (sem sujar a arvore do repositorio).
-          # O SHA vai escondido num comentario HTML para o agente poder
-          # recuperar o binario via api.github.com depois.
           python3 - > /tmp/blob.json <<'PY'
           import base64, json
           print(json.dumps({
@@ -143,27 +136,27 @@ jobs:
               "encoding": "base64"
           }))
           PY
-          BLOB=$(gh api -X POST "repos/$GITHUB_REPOSITORY/git/blobs" \
-                   --input /tmp/blob.json --jq .sha)
+          BLOB=$(gh api -X POST "repos/$GITHUB_REPOSITORY/git/blobs" --input /tmp/blob.json --jq .sha)
           echo "blob git: $BLOB"
-          NOTE="APK de uso pessoal do Memoria Hack (Espanhol, Ingles e Frances). Baixe **MemoriaHack.apk** abaixo e instale no celular. Passo a passo em COMO_INSTALAR_APK.md no repositorio.
+          cat > /tmp/note.md <<'NOTE'
+          APK de uso pessoal do Memoria Hack (Espanhol, Ingles e Frances). Baixe **MemoriaHack.apk** abaixo e instale no celular. O passo a passo esta em COMO_INSTALAR_APK.md no repositorio.
 
-Curso completo embutido: cartas, SRS, testes e provoes funcionam sem internet. Videos e PDFs do Drive abrem no Chrome.
+          Curso completo embutido: cartas, SRS, testes e provoes funcionam sem internet. Videos e PDFs do Drive abrem no Chrome.
 
-SHA-256: \`$SHA256\`
+          SHA-256: `__SHA__`
 
-<!-- build-info blob=$BLOB -->"
+          <!-- build-info blob=__BLOB__ -->
+          NOTE
+          sed -i "s/__SHA__/$SHA256/; s/__BLOB__/$BLOB/" /tmp/note.md
           if gh release view "$TAG" > /dev/null 2>&1; then
-            gh release edit "$TAG" --title "Memoria Hack - APK" --notes "$NOTE"
+            gh release edit "$TAG" --title "Memoria Hack - APK" --notes-file /tmp/note.md
           else
-            gh release create "$TAG" --target "$GITHUB_SHA" \
-              --title "Memoria Hack - APK" --notes "$NOTE"
+            gh release create "$TAG" --target "$GITHUB_SHA" --title "Memoria Hack - APK" --notes-file /tmp/note.md
           fi
           gh release upload "$TAG" MemoriaHack.apk --clobber
           echo "Link direto: https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/MemoriaHack.apk"
 
-      # Diagnostico: mesmo em caso de falha, guarda o log do gradle e o
-      # ambiente do SDK para leitura via `gh run download`.
+      # Diagnostico: mesmo em caso de falha, guarda o log do gradle.
       - name: Guardar diagnostico (sempre)
         if: always()
         uses: actions/upload-artifact@v4
