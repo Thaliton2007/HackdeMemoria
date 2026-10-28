@@ -14,9 +14,17 @@ e tocar no arquivo **MemoriaHack.apk**.
 
 O arquivo tem cerca de **3,5 MB** e precisa de **Android 8.0 ou mais novo**.
 
-> **Versão 1.2 (atual)** — corrige as margens do celular: o conteúdo não fica
-> mais atrás da barra de status/câmera nem sob a barra de gestos, e o fundo
-> preto que aparecia atrás do botão de vídeo foi removido.
+> **Versão 1.3 (atual)** — o app tenta exibir vídeos e PDFs do Drive **dentro
+> da própria aula**, com tela cheia para vídeos. O vídeo "Opening Class" do
+> print está liberado por link no Drive, então pode tocar no player interno.
+> O link discreto "Abrir no Chrome" fica como plano B. Se um arquivo for
+> privado, o Google exige autenticação: nesse caso ele abre numa **aba
+> integrada** que volta direto para a aula, sem deixar uma aba solta.
+>
+> Versão 1.2 — corrigiu as margens do celular (barra de status/câmera e
+> gestos) e removeu o fundo preto atrás do player. A chave de assinatura é
+> estável desde a versão 1.2, então a atualização instala por cima sem apagar
+> o progresso.
 >
 > ⚠️ **Se você já instalou a versão 1.0:** desinstale o app antigo antes de
 > instalar este. Foi preciso trocar a chave de assinatura uma única vez; a
@@ -50,10 +58,23 @@ Pronto: o icone azul **Memoria Hack** fica na sua tela de aplicativos.
 
 ## 4. Videos e PDFs
 
-Os videos e PDFs estao no Google Drive da empresa. Dentro do app aparece o
-botao **"Abrir video/PDF no Chrome"** — toque nele e o conteudo abre no
-Chrome, onde sua conta do Google ja esta logada. Isso precisa de internet.
-**O texto das aulas, as cartas, os testes e os provoes funcionam sem internet.**
+Na versao 1.3, arquivos do Drive liberados como **"qualquer pessoa com o
+link"** aparecem no player **dentro da propria aula**, sem abrir outra aba.
+Conferi no Drive que o video **Opening_Class.mp4** (o da tela do print) tem
+essa permissao. Toque no play como no YouTube; o botao de tela cheia tambem
+funciona.
+
+Abaixo do player ha um link discreto **"Abrir no Chrome"** como plano B, caso
+o player interno nao carregue no seu aparelho. Arquivos **privados** precisam
+de autenticacao: o Google nao permite entrar na conta dentro de um WebView.
+Nesses casos, o app mostra o botao de abertura numa **aba integrada** do
+Chrome (com barra azul e botao X), que volta direto para a aula — nao deixa
+uma aba solta no navegador.
+
+**Nao alterei as permissoes dos arquivos do Drive.** O material continua la;
+so os itens que ja estao liberados por link podem abrir sem login dentro do
+player. Os videos/PDFs ainda precisam de internet. **O texto das aulas, as
+cartas, os testes e os provoes funcionam sem internet.**
 
 ## 5. Trazer o progresso do computador (opcional)
 
@@ -72,4 +93,4 @@ gero um APK novo para voce baixar de novo.
 | "App nao instalado" | Apague a versao antiga e instale de novo; confira se tem espaco livre. |
 | Tela branca ao abrir | Feche o app e abra de novo. O curso leva alguns segundos para carregar na primeira vez. |
 | Voz nao fala | Instale a voz do idioma em Configuracoes -> Sintese de voz. |
-| Video nao abre dentro do app | Toque no botao "Abrir no Chrome". E assim mesmo: o Drive nao permite login dentro do app. |
+| Player nao carregar dentro do app | Toque no link discreto "Abrir no Chrome" abaixo do player. Alguns arquivos privados exigem esse passo. |

@@ -92,7 +92,10 @@ jobs:
         run: |
           set -e
           mkdir -p /tmp/keys
-          if gh release download build-key -p memoriahack.jks -D /tmp/keys --clobber 2>/dev/null; then
+          if gh release view build-key > /dev/null 2>&1; then
+            # Se a chave ja existe mas o download falhar, ABORTA: gerar outra
+            # mudaria o certificado e impediria atualizar o APK instalado.
+            gh release download build-key -p memoriahack.jks -D /tmp/keys --clobber
             echo "Chave existente reutilizada (mesmo certificado do APK anterior)."
             echo "MH_KEY_NOVA=0" >> "$GITHUB_ENV"
           else
@@ -160,11 +163,10 @@ jobs:
           TAG=apk-v1
           SHA256=$(cat /tmp/apk_sha256)
           if [ "$MH_KEY_NOVA" = "1" ]; then
-            gh release view build-key > /dev/null 2>&1 || \
-              gh release create build-key --target "$GITHUB_SHA" \
-                --title "Chave de build (arquivo interno, nao e o aplicativo)" \
-                --notes "Chave de assinatura usada pelo CI para que todas as versoes do APK tenham o mesmo certificado. Nao baixe este arquivo." || true
-            gh release upload build-key /tmp/keys/memoriahack.jks --clobber || true
+            gh release create build-key --target "$GITHUB_SHA" --draft \
+              --title "Chave privada interna de assinatura (nao e o aplicativo)" \
+              --notes "Rascunho privado usado exclusivamente pelo GitHub Actions para assinar atualizacoes. Nao publicar nem compartilhar."
+            gh release upload build-key /tmp/keys/memoriahack.jks --clobber
           fi
           python3 - > /tmp/blob.json <<'PY'
           import base64, json
@@ -178,9 +180,9 @@ jobs:
           cat > /tmp/note.md <<'NOTE'
           APK de uso pessoal do Memoria Hack (Espanhol, Ingles e Frances). Baixe **MemoriaHack.apk** abaixo e instale no celular. O passo a passo esta em COMO_INSTALAR_APK.md no repositorio.
 
-          Curso completo embutido: cartas, SRS, testes e provoes funcionam sem internet. Videos e PDFs do Drive abrem no Chrome.
+          Curso completo embutido: cartas, SRS, testes e provoes funcionam sem internet. Videos/PDFs com link no Drive tentam tocar dentro do app; arquivos privados usam Chrome Custom Tab como fallback.
 
-          Versao 1.2: margens de seguranca do celular (barra de status, camera e gestos), sem fundo preto atras do botao de video e com chave de assinatura estavel para atualizar sem desinstalar.
+          Versao 1.3: player de video/PDF embutido, tela cheia, link discreto de fallback e Chrome Custom Tab para arquivos privados. Mantem as margens seguras e a assinatura estavel da versao 1.2.
 
           SHA-256: `__SHA__`
 

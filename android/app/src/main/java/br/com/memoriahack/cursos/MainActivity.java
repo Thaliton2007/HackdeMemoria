@@ -21,6 +21,7 @@ import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
 import android.util.Base64;
 import android.view.DisplayCutout;
+import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowInsets;
@@ -40,6 +41,7 @@ import android.widget.FrameLayout;
 import android.widget.ProgressBar;
 import android.widget.Toast;
 
+import androidx.browser.customtabs.CustomTabsIntent;
 import androidx.webkit.WebViewAssetLoader;
 
 import java.io.File;
@@ -76,6 +78,10 @@ public class MainActivity extends Activity {
     private TextToSpeech tts;
     private SpeechRecognizer asr;
     private int ttsSeq = 0;
+
+    private FrameLayout telaCheia;
+    private WebChromeClient.CustomViewCallback callbackTelaCheia;
+    private int visibilidadeOriginal;
 
     // ------------------------------------------------------------------
     // Ciclo de vida
@@ -213,7 +219,12 @@ public class MainActivity extends Activity {
         s.setTextZoom(100);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-        s.setUserAgentString(s.getUserAgentString() + " MemoriaHackAndroid/1.0");
+        /* Alguns players incorporados (inclusive o do Drive) respondem 403
+           quando o User-Agent contem o marcador "; wv" de Android WebView.
+           Removemos so esse marcador — NAO e uma tentativa de burlar o login
+           do Google: contas/servicos de autenticacao continuam bloqueados e
+           sao tratados por avisarLoginDrive() + Chrome Custom Tab. */
+        s.setUserAgentString(s.getUserAgentString().replace("; wv", ""));
 
         CookieManager cm = CookieManager.getInstance();
         cm.setAcceptCookie(true);
@@ -222,6 +233,8 @@ public class MainActivity extends Activity {
         web.setWebViewClient(new WebViewClient() {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest req) {
+                // Nao classificamos midia por URLs de sub-recursos: o player
+                // pode carregar endpoints de conta mesmo para um arquivo publico.
                 WebResourceResponse r = assetLoader.shouldInterceptRequest(req.getUrl());
                 if (r != null) return r;
                 return super.shouldInterceptRequest(view, req);
@@ -231,13 +244,22 @@ public class MainActivity extends Activity {
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest req) {
                 Uri u = req.getUrl();
                 if (ASSET_HOST.equals(u.getHost())) return false;
+                if (ehLoginGoogle(u)) {
+                    // Nunca tentamos autenticar dentro do WebView (o Google
+                    // bloqueia). Avisamos o JS para trocar o player pelo botao.
+                    avisarLoginDrive();
+                    if (!req.isForMainFrame()) return true;
+                    abrirFora(u.toString());
+                    return true;
+                }
                 String sc = u.getScheme();
                 if ("http".equals(sc) || "https".equals(sc)) {
                     if (req.isForMainFrame()) {
                         abrirFora(u.toString());
                         return true;
                     }
-                    return false; // subframe: o bridge esconde o iframe do Drive
+                    // Subframe: deixa o player /preview do Drive tocar AQUI.
+                    return false;
                 }
                 if ("tel".equals(sc) || "mailto".equals(sc)) {
                     abrirFora(u.toString());
@@ -305,6 +327,35 @@ public class MainActivity extends Activity {
                     }
                 });
             }
+
+            /* Botao de tela cheia do player do Drive / YouTube. */
+            @Override
+            public void onShowCustomView(View view, CustomViewCallback cb) {
+                if (telaCheia != null) {
+                    try { cb.onCustomViewHidden(); } catch (Exception ignored) { }
+                    return;
+                }
+                callbackTelaCheia = cb;
+                telaCheia = new FrameLayout(MainActivity.this);
+                telaCheia.setBackgroundColor(Color.BLACK);
+                telaCheia.addView(view, new FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT, Gravity.CENTER));
+                FrameLayout decor = (FrameLayout) getWindow().getDecorView();
+                decor.addView(telaCheia, new FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT));
+                visibilidadeOriginal = decor.getSystemUiVisibility();
+                decor.setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN
+                        | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                        | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+            }
+
+            @Override
+            public void onHideCustomView() {
+                esconderTelaCheia();
+            }
         });
 
         web.setDownloadListener((url, ua, cd, mime, len) -> abrirFora(url));
@@ -345,8 +396,23 @@ public class MainActivity extends Activity {
         filePathCallback = null;
     }
 
+    private void esconderTelaCheia() {
+        if (telaCheia == null) return;
+        try {
+            FrameLayout decor = (FrameLayout) getWindow().getDecorView();
+            decor.removeView(telaCheia);
+            decor.setSystemUiVisibility(visibilidadeOriginal);
+        } catch (Exception ignored) { }
+        telaCheia = null;
+        if (callbackTelaCheia != null) {
+            try { callbackTelaCheia.onCustomViewHidden(); } catch (Exception ignored) { }
+            callbackTelaCheia = null;
+        }
+    }
+
     @Override
     public void onBackPressed() {
+        if (telaCheia != null) { esconderTelaCheia(); return; }
         web.evaluateJavascript(
                 "(function(){try{return !!(window.__mhBackPressed&&window.__mhBackPressed());}"
                         + "catch(e){return false;}})()",
@@ -468,14 +534,54 @@ public class MainActivity extends Activity {
         return b.append("'").toString();
     }
 
+    /** Verdadeiro quando o Drive manda o usuario para a tela de login. */
+    private boolean ehLoginGoogle(Uri u) {
+        if (u == null) return false;
+        String host = u.getHost();
+        if (host == null) return false;
+        host = host.toLowerCase(Locale.ROOT);
+        return host.startsWith("accounts.google.")
+                || host.startsWith("consent.google.")
+                || host.equals("accounts.google.com")
+                || (host.startsWith("drive.google.") &&
+                    (u.getPath() != null && u.getPath().contains("ServiceLogin")));
+    }
+
+    /**
+     * Avisa SOMENTE o curso atualmente visivel que o player acabou redirecionado
+     * para login. Assim, um arquivo privado do Espanhol nao afeta os players
+     * publicos do Ingles/Frances que ficam montados em iframes escondidos.
+     */
+    private void avisarLoginDrive() {
+        runOnUiThread(() -> web.evaluateJavascript(
+                "(function(){try{"
+                        + "var f=document.querySelector('#palco iframe.on');"
+                        + "var w=f&&f.contentWindow;"
+                        + "if(w&&w.__mhEvent)w.__mhEvent('drive','login','');"
+                        + "}catch(e){}})()", null));
+    }
+
+    /**
+     * Abre links externos numa Chrome Custom Tab: e uma aba do navegador que
+     * aparece "colada" no app (mesma tarefa, cor da nossa barra, botao de
+     * fechar que volta direto para a aula). Nao e uma nova aba solta no Chrome.
+     */
     private void abrirFora(String url) {
         runOnUiThread(() -> {
             try {
-                Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(i);
+                CustomTabsIntent.Builder b = new CustomTabsIntent.Builder();
+                b.setShowTitle(true);
+                b.setToolbarColor(Color.parseColor("#0B6BCB"));
+                CustomTabsIntent ct = b.build();
+                ct.launchUrl(MainActivity.this, Uri.parse(url));
             } catch (Exception e) {
-                toast("Abra no Chrome: " + url);
+                try {
+                    Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                    i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(i);
+                } catch (Exception e2) {
+                    toast("Abra no Chrome: " + url);
+                }
             }
         });
     }

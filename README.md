@@ -28,7 +28,7 @@ de idiomas em **HTML único, offline**, construída a partir de três cursos da 
 | `ferramentas/extrair_hub.py` | Extrai os 3 cursos do hub, ou reconstrói o hub a partir deles |
 | `ferramentas/auditar_apps.py` | Mede o estado real dos datasets (cartas, questões, provões, gabarito) |
 
-## APK para Android (projeto novo — 27/10/2026)
+## APK para Android (projeto iniciado em 27/10/2026)
 
 O curso também vira um **APK que você baixa e instala no celular**, com os 3 cursos
 **dentro do arquivo** (estuda sem internet). Instruções em linguagem simples:
@@ -47,8 +47,9 @@ python3 ferramentas/gerar_assets_android.py          # gera o HTML instrumentado
 python3 ferramentas/gerar_assets_android.py --verificar
 ```
 
-O HTML de produção em `app/` continua intacto (MD5 `8e547cdd…`). Vídeos/PDFs do Drive
-abrem no Chrome, onde a conta do Google já está logada.
+O HTML de produção em `app/` continua intacto (MD5 `8e547cdd…`). Na versão APK 1.3,
+vídeos/PDFs com link de visualização abrem no player **dentro do app**; os privados podem
+usar uma Chrome Custom Tab integrada, sem expor as permissões do Drive.
 
 ## Como usar o app
 

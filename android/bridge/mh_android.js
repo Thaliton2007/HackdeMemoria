@@ -31,6 +31,21 @@
 
   var ttsAtual = null;
   var asrAtual = null;
+  var driveLogin = false;   // true quando o curso/midia exige autenticacao Google
+
+  /* O acervo de Espanhol no Drive e privado. Evita mostrar um player que
+     inevitavelmente pede login dentro do WebView; a tela oferece o Chrome
+     Custom Tab integrado. Ingles/Frances tentam o iframe incorporado.
+     A busca roda em boot(), depois que o HTML do curso foi parseado. */
+  function detectarCursoPrivado() {
+    try {
+      var catalogo = document.getElementById('SOURCES');
+      if (catalogo) {
+        var metaCurso = JSON.parse(catalogo.textContent || '{}')._meta || {};
+        if (metaCurso.curso === 'espanhol') driveLogin = true;
+      }
+    } catch (e) {}
+  }
 
   window.__mhEvent = function (kind, a, b) {
     try {
@@ -54,6 +69,10 @@
           asrAtual = null;
           if (typeof r.onend === 'function') r.onend({});
         }
+      } else if (kind === 'drive') {
+        /* O nativo detectou um redirecionamento do player para login Google.
+           O Google nao permite essa autenticacao dentro de WebView. */
+        if (a === 'login') { driveLogin = true; patchDrive(); }
       }
     } catch (e) {}
   };
@@ -204,9 +223,12 @@
   }, true);
 
   /* ------------------------------------------------------------------
-     5. Links externos / midia do Drive: o Google bloqueia login dentro
-        de WebView, entao abrimos no Chrome (onde o usuario ja esta logado).
-        Os iframes /preview viram um botao claro em vez de tela de login.
+     5. Midia do Drive DENTRO do app.
+        Arquivos compartilhados como "qualquer pessoa com o link" podem
+        tocar pelo player /preview no WebView. O acervo de Espanhol e privado
+        e usa Chrome Custom Tab integrado. Se qualquer outro preview privado
+        redirecionar para accounts.google.com, o nativo detecta e avisa via
+        __mhEvent('drive','login').
      ------------------------------------------------------------------ */
   try {
     var _open = window.open;
@@ -227,9 +249,44 @@
       'border-radius:12px;background:#EDF2F5;display:flex;flex-direction:column;gap:8px;align-items:flex-start}' +
       '.mh-android-box button{background:#0B6BCB;color:#fff;border:0;border-radius:9px;' +
       'padding:11px 16px;font-size:14px;font-weight:700;cursor:pointer}' +
-      '.mh-android-box small{color:#5A6A78;font-size:12px;line-height:1.4}';
+      '.mh-android-box small{color:#5A6A78;font-size:12px;line-height:1.4}' +
+      /* barra discreta de fallback, quando o player embutido esta tentando */
+      '.mh-android-box.mh-inline{margin:0 0 10px;padding:0;background:transparent;border:0;' +
+      'flex-direction:row;align-items:center;gap:10px;flex-wrap:wrap}' +
+      '.mh-android-box.mh-inline button{background:transparent;color:#0B6BCB;' +
+      'border:1px solid #CFD8DE;padding:6px 12px;font-size:12px;font-weight:650;border-radius:8px}' +
+      '.mh-android-box.mh-inline small{font-size:11.5px;color:#5A6A78}';
     (document.head || document.documentElement).appendChild(css);
   } catch (e) {}
+
+  function caixaMidia(url, destaque) {
+    var box = document.createElement('div');
+    box.className = 'mh-android-box' + (destaque ? '' : ' mh-inline');
+    var btn = document.createElement('button');
+    btn.textContent = destaque ? '▶ Abrir video/PDF no Chrome' : '↗ Abrir no Chrome';
+    btn.onclick = function () { MHAndroid.openExternal(url); };
+    var dica = document.createElement('small');
+    dica.textContent = destaque
+      ? 'O Google pede acesso para este arquivo. Abra no Chrome com sua conta autorizada. ' +
+        'O texto da aula continua disponivel aqui embaixo.'
+      : 'Se o player acima nao aparecer, toque aqui.';
+    box.appendChild(btn); box.appendChild(dica);
+    return box;
+  }
+
+  function neutralizarCaixa(host) {
+    host.innerHTML = '';
+    var props = {
+      'height': 'auto', 'min-height': '0', 'max-height': 'none',
+      'aspect-ratio': 'auto', 'background': 'transparent',
+      'padding': '0', 'margin': '0 0 8px', 'position': 'static',
+      'overflow': 'visible', 'border': '0', 'border-radius': '12px',
+      'display': 'block'
+    };
+    Object.keys(props).forEach(function (k) {
+      try { host.style.setProperty(k, props[k], 'important'); } catch (e) {}
+    });
+  }
 
   var patchPendente = false;
   function patchDrive() {
@@ -241,56 +298,43 @@
         var lista = document.querySelectorAll('iframe[src*="drive.google.com"]');
         for (var i = 0; i < lista.length; i++) {
           var f = lista[i];
-          if (f.__mhDrive) continue;
-          f.__mhDrive = 1;
           var url = f.getAttribute('src');
-
-          var box = document.createElement('div');
-          box.className = 'mh-android-box';
-          var btn = document.createElement('button');
-          btn.textContent = '▶ Abrir video/PDF no Chrome';
-          btn.onclick = (function (u) {
-            return function () { MHAndroid.openExternal(u); };
-          })(url);
-          var dica = document.createElement('small');
-          dica.textContent = 'O player do Drive precisa do navegador (login do Google). ' +
-                             'O texto da aula continua disponivel aqui embaixo.';
-          box.appendChild(btn); box.appendChild(dica);
-
-          /* .vidbox e .pdfbox sao caixas pretas 16:9 / 78vh feitas para o
-             iframe. Ao trocar o iframe pelo botao, neutralizamos a caixa
-             para nao sobrar um retangulo preto vazio na tela. */
           var host = f.closest ? f.closest('.vidbox,.pdfbox') : null;
-          if (host) {
-            host.innerHTML = '';
-            var props = {
-              'height': 'auto', 'min-height': '0', 'max-height': 'none',
-              'aspect-ratio': 'auto', 'background': 'transparent',
-              'padding': '0', 'margin': '0 0 8px', 'position': 'static',
-              'overflow': 'visible', 'border': '0', 'border-radius': '12px',
-              'display': 'block'
-            };
-            Object.keys(props).forEach(function (k) {
-              try { host.style.setProperty(k, props[k], 'important'); } catch (e) {}
-            });
-            host.appendChild(box);
+
+          if (driveLogin) {
+            /* Arquivo privado: substitui o player pelo botao. */
+            if (f.__mhSubstituido) continue;
+            f.__mhSubstituido = 1;
+            if (f.__mhBarElement && f.__mhBarElement.parentNode) {
+              f.__mhBarElement.parentNode.removeChild(f.__mhBarElement);
+            }
+            f.__mhBarElement = null;
+            var box = caixaMidia(url, true);
+            if (host) { neutralizarCaixa(host); host.appendChild(box); }
+            else {
+              if (f.parentNode) f.parentNode.insertBefore(box, f);
+              f.style.display = 'none';
+            }
           } else {
-            if (f.parentNode) f.parentNode.insertBefore(box, f);
-            f.style.display = 'none';
+            /* Deixa o player tocar aqui; so acrescenta um plano B discreto. */
+            if (f.__mhBarra) continue;
+            f.__mhBarra = 1;
+            var bar = caixaMidia(url, false);
+            f.__mhBarElement = bar;
+            var alvo = host || f;
+            if (alvo.parentNode) alvo.parentNode.insertBefore(bar, alvo.nextSibling);
           }
         }
 
-        /* O aviso original culpa "cookies de terceiros (padrao no Safari)".
-           No APK o motivo e outro (login do Google em WebView), entao
-           trocamos por uma explicacao que corresponde ao botao acima. */
+        /* O aviso original culpa "cookies de terceiros (padrao no Safari)". */
         var avisos = document.querySelectorAll('.lockmsg');
         for (var k = 0; k < avisos.length; k++) {
           var av = avisos[k];
           if (av.__mhAviso) continue;
           if (/cookies de terceiros/i.test(av.textContent || '')) {
             av.__mhAviso = 1;
-            av.textContent = 'Neste app, videos e PDFs do Drive abrem no Chrome, ' +
-                             'onde sua conta do Google ja esta logada. Use o botao acima.';
+            av.textContent = 'Se o player nao carregar, toque em "Abrir no Chrome". ' +
+                             'O texto da aula continua disponivel aqui embaixo.';
             av.style.fontWeight = '500';
           }
         }
@@ -354,7 +398,7 @@
     };
   }
 
-  function boot() { patchGo(); patchDrive(); }
+  function boot() { detectarCursoPrivado(); patchGo(); patchDrive(); }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', boot);
   } else { boot(); }
