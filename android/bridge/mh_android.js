@@ -244,6 +244,7 @@
           if (f.__mhDrive) continue;
           f.__mhDrive = 1;
           var url = f.getAttribute('src');
+
           var box = document.createElement('div');
           box.className = 'mh-android-box';
           var btn = document.createElement('button');
@@ -255,8 +256,43 @@
           dica.textContent = 'O player do Drive precisa do navegador (login do Google). ' +
                              'O texto da aula continua disponivel aqui embaixo.';
           box.appendChild(btn); box.appendChild(dica);
-          if (f.parentNode) f.parentNode.insertBefore(box, f);
-          f.style.display = 'none';
+
+          /* .vidbox e .pdfbox sao caixas pretas 16:9 / 78vh feitas para o
+             iframe. Ao trocar o iframe pelo botao, neutralizamos a caixa
+             para nao sobrar um retangulo preto vazio na tela. */
+          var host = f.closest ? f.closest('.vidbox,.pdfbox') : null;
+          if (host) {
+            host.innerHTML = '';
+            var props = {
+              'height': 'auto', 'min-height': '0', 'max-height': 'none',
+              'aspect-ratio': 'auto', 'background': 'transparent',
+              'padding': '0', 'margin': '0 0 8px', 'position': 'static',
+              'overflow': 'visible', 'border': '0', 'border-radius': '12px',
+              'display': 'block'
+            };
+            Object.keys(props).forEach(function (k) {
+              try { host.style.setProperty(k, props[k], 'important'); } catch (e) {}
+            });
+            host.appendChild(box);
+          } else {
+            if (f.parentNode) f.parentNode.insertBefore(box, f);
+            f.style.display = 'none';
+          }
+        }
+
+        /* O aviso original culpa "cookies de terceiros (padrao no Safari)".
+           No APK o motivo e outro (login do Google em WebView), entao
+           trocamos por uma explicacao que corresponde ao botao acima. */
+        var avisos = document.querySelectorAll('.lockmsg');
+        for (var k = 0; k < avisos.length; k++) {
+          var av = avisos[k];
+          if (av.__mhAviso) continue;
+          if (/cookies de terceiros/i.test(av.textContent || '')) {
+            av.__mhAviso = 1;
+            av.textContent = 'Neste app, videos e PDFs do Drive abrem no Chrome, ' +
+                             'onde sua conta do Google ja esta logada. Use o botao acima.';
+            av.style.fontWeight = '500';
+          }
         }
       } catch (e) {}
     }, 150);

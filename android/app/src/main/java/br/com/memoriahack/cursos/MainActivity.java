@@ -7,6 +7,7 @@ import android.content.ContentValues;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.graphics.Insets;
 import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Build;
@@ -19,8 +20,11 @@ import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
 import android.util.Base64;
+import android.view.DisplayCutout;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowInsets;
+import android.view.WindowManager;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
@@ -95,6 +99,8 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, 6));
         setContentView(root);
 
+        aplicarMargensSeguras(root);
+
         assetLoader = new WebViewAssetLoader.Builder()
                 .setDomain(ASSET_HOST)
                 .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
@@ -128,6 +134,60 @@ public class MainActivity extends Activity {
         if (tts != null) { tts.stop(); tts.shutdown(); tts = null; }
         web.destroy();
         super.onDestroy();
+    }
+
+    // ------------------------------------------------------------------
+    // Margens de seguranca (barra de status, camera/furo na tela, gestos)
+    // ------------------------------------------------------------------
+    /**
+     * O HTML usa viewport-fit=cover e o app tem targetSdk 35: no Android 15+
+     * o sistema desenha a janela de borda a borda. Sem este ajuste o conteudo
+     * sobe por tras da barra de status / camera e desce sob a barra de gestos.
+     * Aplicamos os insets como padding do FrameLayout raiz, o que desloca o
+     * WebView inteiro (inclusive elementos position:fixed) para a area segura.
+     * O background do root continua preenchendo a faixa da barra de status.
+     */
+    private void aplicarMargensSeguras(final View root) {
+        if (Build.VERSION.SDK_INT >= 28) {
+            WindowManager.LayoutParams lp = getWindow().getAttributes();
+            lp.layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            getWindow().setAttributes(lp);
+        }
+
+        root.setOnApplyWindowInsetsListener((v, insets) -> {
+            int l, t, r, b;
+            if (Build.VERSION.SDK_INT >= 30) {
+                Insets barras = insets.getInsets(WindowInsets.Type.systemBars());
+                Insets corte = insets.getInsets(WindowInsets.Type.displayCutout());
+                l = Math.max(barras.left, corte.left);
+                t = Math.max(barras.top, corte.top);
+                r = Math.max(barras.right, corte.right);
+                b = Math.max(barras.bottom, corte.bottom);
+            } else {
+                l = insets.getSystemWindowInsetLeft();
+                t = insets.getSystemWindowInsetTop();
+                r = insets.getSystemWindowInsetRight();
+                b = insets.getSystemWindowInsetBottom();
+                if (Build.VERSION.SDK_INT >= 28) {
+                    DisplayCutout corte = insets.getDisplayCutout();
+                    if (corte != null) {
+                        l = Math.max(l, corte.getSafeInsetLeft());
+                        t = Math.max(t, corte.getSafeInsetTop());
+                        r = Math.max(r, corte.getSafeInsetRight());
+                        b = Math.max(b, corte.getSafeInsetBottom());
+                    }
+                }
+            }
+            int folga = dp(4); // respiro extra nas bordas (telas curvas)
+            v.setPadding(l + folga, t + folga, r + folga, b + folga);
+            return insets; // nao consome: preserva os insets do teclado (IME)
+        });
+        root.requestApplyInsets();
+    }
+
+    private int dp(int valor) {
+        return Math.round(valor * getResources().getDisplayMetrics().density);
     }
 
     // ------------------------------------------------------------------

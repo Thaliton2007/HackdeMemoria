@@ -30,6 +30,18 @@ gradle :app:assembleDebug
 
 Ou abra a pasta `android/` no Android Studio e use **Run**.
 
+## Margens de seguranca (v1.1)
+
+O HTML de producao usa `viewport-fit=cover`. Com `targetSdk 35`, o Android 15+
+desenha a janela de borda a borda e o conteudo subia por tras da barra de
+status / furo da camera e descia sob a barra de gestos. `MainActivity
+.aplicarMargensSeguras()` aplica os insets de `systemBars()` + `displayCutout()`
+como padding do FrameLayout raiz — isso desloca o WebView inteiro (inclusive
+elementos `position:fixed`) sem alterar o HTML. O background do root preenche
+a faixa da barra de status e `windowLightStatusBar=true` mantem os icones do
+sistema legiveis. O bridge tambem neutraliza `.vidbox`/`.pdfbox` (caixas
+pretas 16:9) ao trocar o iframe do Drive pelo botao "Abrir no Chrome".
+
 ## Pontes nativas (por que existem)
 
 | O que o app usa | No WebView do Android | Solucao |
