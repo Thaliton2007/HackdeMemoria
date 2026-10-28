@@ -1,0 +1,209 @@
+name: Gerar APK do Memoria Hack
+
+on:
+  push:
+    branches: [ arena/6424d026-hackdememoria ]
+    paths:
+      - 'app/MemoriaHack_Cursos.html'
+      - 'android/**'
+      - 'ferramentas/gerar_assets_android.py'
+      - '.github/workflows/build-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-apk
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Compilar e publicar APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Baixar codigo
+        uses: actions/checkout@v4
+
+      - name: Conferir HTML de producao
+        run: |
+          echo "MD5 do hub de producao:"
+          md5sum app/MemoriaHack_Cursos.html
+          test "$(md5sum app/MemoriaHack_Cursos.html | cut -d' ' -f1)" = "8e547cddce73df56c23093a253e38dcc"
+
+      - name: Gerar HTML instrumentado para o APK
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python3 ferramentas/gerar_assets_android.py
+
+      - name: Preparar JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # O runner ubuntu-latest ja traz o Android SDK. Nao usamos a action
+      # android-actions/setup-android (que quebrou ao ser forcada no Node 24).
+      - name: Localizar / instalar Android SDK
+        shell: bash
+        run: |
+          set -x
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          if [ -z "$SDK" ] || [ ! -d "$SDK" ]; then SDK=/usr/local/lib/android/sdk; fi
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          echo "sdk.dir=$SDK" > android/local.properties
+          echo "SDK=$SDK"
+          SM="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SM" ]; then
+            mkdir -p "$SDK/cmdline-tools/tmpdl"
+            curl -fsSL -o /tmp/cmdline.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+            unzip -q -o /tmp/cmdline.zip -d "$SDK/cmdline-tools/tmpdl"
+            rm -rf "$SDK/cmdline-tools/latest"
+            mkdir -p "$SDK/cmdline-tools/latest"
+            cp -a "$SDK/cmdline-tools/tmpdl/cmdline-tools/." "$SDK/cmdline-tools/latest/"
+            SM="$SDK/cmdline-tools/latest/bin/sdkmanager"
+            chmod +x "$SM"
+          fi
+          echo "$SM" > /tmp/sdkmanager_path
+          echo "$(dirname "$SM")" >> "$GITHUB_PATH"
+          java -version 2>&1 || true
+          "$SM" --version || true
+
+      - name: Instalar plataforma e build-tools 35
+        shell: bash
+        run: |
+          SM=$(cat /tmp/sdkmanager_path)
+          yes | "$SM" --licenses > /dev/null 2>&1 || true
+          "$SM" --install "platform-tools" "platforms;android-35" "build-tools;35.0.0" || true
+          echo "=== plataformas ==="; ls "$ANDROID_HOME/platforms" || true
+          echo "=== build-tools ==="; ls "$ANDROID_HOME/build-tools" || true
+
+      # Cada runner novo geraria um debug.keystore diferente, e o Android
+      # recusaria instalar a atualizacao. Guardamos a chave numa Release
+      # tecnica separada (build-key) para manter o MESMO certificado.
+      - name: Obter chave de assinatura estavel
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -e
+          mkdir -p /tmp/keys
+          if gh release view build-key > /dev/null 2>&1; then
+            # Se a chave ja existe mas o download falhar, ABORTA: gerar outra
+            # mudaria o certificado e impediria atualizar o APK instalado.
+            gh release download build-key -p memoriahack.jks -D /tmp/keys --clobber
+            echo "Chave existente reutilizada (mesmo certificado do APK anterior)."
+            echo "MH_KEY_NOVA=0" >> "$GITHUB_ENV"
+          else
+            echo "Gerando chave propria (primeira execucao)."
+            keytool -genkeypair -keystore /tmp/keys/memoriahack.jks \
+              -storetype JKS -alias memoriahack -keyalg RSA -keysize 2048 \
+              -validity 10950 -storepass memoriahack -keypass memoriahack \
+              -dname "CN=Memoria Hack, OU=Pessoal, O=Memoria Hack, L=Sao Paulo, ST=SP, C=BR"
+            echo "MH_KEY_NOVA=1" >> "$GITHUB_ENV"
+          fi
+          keytool -list -keystore /tmp/keys/memoriahack.jks -storepass memoriahack -alias memoriahack | head -8
+          echo "MH_KEYSTORE=/tmp/keys/memoriahack.jks" >> "$GITHUB_ENV"
+
+      - name: Preparar Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Compilar APK (mesma chave em todos os builds)
+        working-directory: android
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle :app:assembleDebug --no-daemon --stacktrace \
+            -Pandroid.injected.signing.store.file="$MH_KEYSTORE" \
+            -Pandroid.injected.signing.store.password=memoriahack \
+            -Pandroid.injected.signing.key.alias=memoriahack \
+            -Pandroid.injected.signing.key.password=memoriahack \
+            2>&1 | tee gradle-build.log
+
+      - name: Renomear APK
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk MemoriaHack.apk
+          ls -lh MemoriaHack.apk
+          sha256sum MemoriaHack.apk
+
+      - name: Verificar conteudo do APK
+        shell: bash
+        run: |
+          set -e
+          unzip -l MemoriaHack.apk | grep -E 'AndroidManifest.xml|classes.dex|assets/MemoriaHack_Cursos.html'
+          N=$(unzip -p MemoriaHack.apk assets/MemoriaHack_Cursos.html | wc -c)
+          echo "HTML dentro do APK: $N bytes"
+          test "$N" -gt 9000000
+          SHA256=$(sha256sum MemoriaHack.apk | cut -d' ' -f1)
+          echo "SHA256: $SHA256"
+          echo "$SHA256" > /tmp/apk_sha256
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort | tail -1)
+          echo "apksigner: $APKSIGNER"
+          "$APKSIGNER" verify --print-certs MemoriaHack.apk | grep -i 'fingerprint' | head -4 || true
+
+      - name: Guardar como artefato da execucao
+        uses: actions/upload-artifact@v4
+        with:
+          name: MemoriaHack-APK
+          path: MemoriaHack.apk
+          retention-days: 90
+
+      - name: Publicar link direto de download
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -e
+          TAG=apk-v1
+          SHA256=$(cat /tmp/apk_sha256)
+          if [ "$MH_KEY_NOVA" = "1" ]; then
+            gh release create build-key --target "$GITHUB_SHA" --draft \
+              --title "Chave privada interna de assinatura (nao e o aplicativo)" \
+              --notes "Rascunho privado usado exclusivamente pelo GitHub Actions para assinar atualizacoes. Nao publicar nem compartilhar."
+            gh release upload build-key /tmp/keys/memoriahack.jks --clobber
+          fi
+          python3 - > /tmp/blob.json <<'PY'
+          import base64, json
+          print(json.dumps({
+              "content": base64.b64encode(open("MemoriaHack.apk", "rb").read()).decode(),
+              "encoding": "base64"
+          }))
+          PY
+          BLOB=$(gh api -X POST "repos/$GITHUB_REPOSITORY/git/blobs" --input /tmp/blob.json --jq .sha)
+          echo "blob git: $BLOB"
+          cat > /tmp/note.md <<'NOTE'
+          APK de uso pessoal do Memoria Hack (Espanhol, Ingles e Frances). Baixe **MemoriaHack.apk** abaixo e instale no celular. O passo a passo esta em COMO_INSTALAR_APK.md no repositorio.
+
+          Curso completo embutido: cartas, SRS, testes e provoes funcionam sem internet. Videos acessiveis por link tentam tocar no player nativo; PDFs com link abrem dentro da aula; audios acessiveis por link tocam no player nativo sem mini-player na pagina. Arquivos privados usam Chrome Custom Tab.
+
+          Versao 1.6: videos acessiveis por link abrem no player Android nativo em tela cheia, com pausa, barra de busca, avanco/retrocesso de 10 segundos e velocidades de 0,5x a 2x. Arquivos privados ou falhas no stream oferecem a Chrome Custom Tab. Audios acessiveis por link continuam no MediaPlayer nativo sem mini-player. Mantem o HTML de producao intacto, os 3 idiomas, as margens seguras, as permissoes atuais do Drive e a assinatura estavel.
+
+          SHA-256: `__SHA__`
+
+          <!-- build-info blob=__BLOB__ -->
+          NOTE
+          sed -i "s/__SHA__/$SHA256/; s/__BLOB__/$BLOB/" /tmp/note.md
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release edit "$TAG" --title "Memoria Hack - APK" --notes-file /tmp/note.md
+          else
+            gh release create "$TAG" --target "$GITHUB_SHA" --title "Memoria Hack - APK" --notes-file /tmp/note.md
+          fi
+          gh release upload "$TAG" MemoriaHack.apk --clobber
+          echo "Link direto: https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/MemoriaHack.apk"
+
+      - name: Guardar diagnostico (sempre)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnostico-build
+          path: |
+            android/gradle-build.log
+            android/local.properties
+          if-no-files-found: ignore
+          retention-days: 14

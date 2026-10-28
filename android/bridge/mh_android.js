@@ -1,0 +1,488 @@
+/* =====================================================================
+   Memoria Hack — ponte JS para o APK Android (WebView)
+   ---------------------------------------------------------------------
+   Este arquivo e injetado no <head> do hub e dos 3 cursos pelo script
+   ferramentas/gerar_assets_android.py. Ele NAO altera o HTML original:
+   so a copia que vai dentro do APK (assets/) e instrumentada.
+
+   O WebView do Android nao implementa a Web Speech API (nem
+   speechSynthesis nem SpeechRecognition), bloqueia login do Google em
+   iframe e nao tem historico nas paginas do app (a navegacao e feita
+   trocando classes CSS). Aqui nos substituimos essas pecas por pontes
+   nativas expostas por MainActivity.java como "window.MHAndroid".
+   ===================================================================== */
+(function () {
+  'use strict';
+
+  if (!window.MHAndroid) return;                 // fora do APK: nao faz nada
+
+  var IS_TOP = false;
+  try { IS_TOP = (window === window.top); } catch (e) { IS_TOP = true; }
+
+  /* ------------------------------------------------------------------
+     1. Registro de frames: o Java so consegue evaluateJavascript() no
+        frame principal, entao todos os frames se registram em window.top
+        e o Java dispara __mhEvent em todos (cada um ignora o que nao e seu).
+     ------------------------------------------------------------------ */
+  try {
+    if (!window.top.__mhFrames) window.top.__mhFrames = [];
+    window.top.__mhFrames.push(window);
+  } catch (e) {}
+
+  var ttsAtual = null;
+  var asrAtual = null;
+  var driveLogin = false;   // true quando o curso/midia exige autenticacao Google
+
+  /* O acervo de Espanhol no Drive e privado. Evita mostrar um player que
+     inevitavelmente pede login dentro do WebView; a tela oferece o Chrome
+     Custom Tab integrado. Ingles/Frances tentam o iframe incorporado.
+     A busca roda em boot(), depois que o HTML do curso foi parseado. */
+  function detectarCursoPrivado() {
+    try {
+      var catalogo = document.getElementById('SOURCES');
+      if (catalogo) {
+        var metaCurso = JSON.parse(catalogo.textContent || '{}')._meta || {};
+        if (metaCurso.curso === 'espanhol') driveLogin = true;
+      }
+    } catch (e) {}
+  }
+
+  window.__mhEvent = function (kind, a, b) {
+    try {
+      if (kind === 'tts') {
+        var u = ttsAtual;
+        ttsAtual = null;
+        if (!u) return;
+        if (a === 'end' && typeof u.onend === 'function') u.onend({});
+        else if (a === 'error' && typeof u.onerror === 'function') u.onerror({ error: 'synthesis-failed' });
+      } else if (kind === 'asr') {
+        var r = asrAtual;
+        if (!r) return;
+        if (a === 'result') {
+          if (typeof r.onresult === 'function') {
+            r.onresult({ results: [[{ transcript: String(b || ''), confidence: 1 }]], resultIndex: 0 });
+          }
+        } else if (a === 'error') {
+          if (typeof r.onerror === 'function') r.onerror({ error: b || 'no-speech' });
+        }
+        if (a !== 'start') {
+          asrAtual = null;
+          if (typeof r.onend === 'function') r.onend({});
+        }
+      } else if (kind === 'audio') {
+        atualizarBotoesAudio(String(b || ''), a);
+      } else if (kind === 'drive') {
+        /* O nativo detectou um redirecionamento do player para login Google.
+           O Google nao permite essa autenticacao dentro de WebView. */
+        if (a === 'login') { driveLogin = true; patchDrive(); }
+      }
+    } catch (e) {}
+  };
+
+  /* ------------------------------------------------------------------
+     2. Voz: sintese (TextToSpeech nativo)
+     ------------------------------------------------------------------ */
+  function MHUtterance(text) {
+    this.text = String(text == null ? '' : text);
+    this.lang = ''; this.rate = 1; this.pitch = 1; this.volume = 1;
+    this.voice = null;
+    this.onstart = null; this.onend = null; this.onerror = null;
+    this.onboundary = null; this.onmark = null;
+    this.onpause = null; this.onresume = null;
+  }
+
+  var VOZES = [
+    { name: 'Android ES', lang: 'es-ES', localService: true, 'default': true, voiceURI: 'android:es-ES' },
+    { name: 'Android EN', lang: 'en-US', localService: true, 'default': false, voiceURI: 'android:en-US' },
+    { name: 'Android FR', lang: 'fr-FR', localService: true, 'default': false, voiceURI: 'android:fr-FR' },
+    { name: 'Android PT', lang: 'pt-BR', localService: true, 'default': false, voiceURI: 'android:pt-BR' }
+  ];
+
+  var synth = {
+    speaking: false, pending: false, paused: false, onvoiceschanged: null,
+    getVoices: function () { return VOZES.slice(); },
+    speak: function (u) {
+      var texto = (typeof u === 'string') ? u : ((u && u.text) || '');
+      if (!texto) return;
+      var lang = (u && u.lang) || (u && u.voice && u.voice.lang) ||
+                 document.documentElement.lang || 'pt-BR';
+      var rate = (u && Number(u.rate)) || 1;
+      ttsAtual = u;
+      this.speaking = true;
+      try { MHAndroid.ttsSpeak(texto, lang, rate); }
+      catch (e) { this.speaking = false; }
+      if (u && typeof u.onstart === 'function') u.onstart({});
+    },
+    cancel: function () {
+      /* Nao dispara 'end': o Java usa um contador (ttsSeq) para ignorar
+         o onDone da fala anterior quando ha uma nova logo em seguida. */
+      this.speaking = false; this.pending = false; this.paused = false;
+      ttsAtual = null;
+      try { MHAndroid.ttsCancel(); } catch (e) {}
+    },
+    pause: function () { this.paused = true; },
+    resume: function () { this.paused = false; },
+    addEventListener: function (t, fn) { if (t === 'voiceschanged') this.onvoiceschanged = fn; },
+    removeEventListener: function () {},
+    dispatchEvent: function () { return true; }
+  };
+
+  try {
+    Object.defineProperty(window, 'speechSynthesis', {
+      configurable: true, writable: true, value: synth
+    });
+  } catch (e) { try { window.speechSynthesis = synth; } catch (e2) {} }
+  try { window.SpeechSynthesisUtterance = MHUtterance; } catch (e) {}
+
+  /* ------------------------------------------------------------------
+     3. Voz: reconhecimento (SpeechRecognizer nativo)
+     ------------------------------------------------------------------ */
+  function MHSpeechRecognition() {
+    this.lang = ''; this.interimResults = false; this.maxAlternatives = 1;
+    this.continuous = false;
+    this.onresult = null; this.onerror = null; this.onend = null;
+    this.onstart = null; this.onspeechend = null;
+  }
+  MHSpeechRecognition.prototype.start = function () {
+    asrAtual = this;
+    if (typeof this.onstart === 'function') this.onstart({});
+    try { MHAndroid.asrStart(this.lang || document.documentElement.lang || 'pt-BR'); }
+    catch (e) { window.__mhEvent('asr', 'error', 'audio-capture'); }
+  };
+  MHSpeechRecognition.prototype.stop = function () {
+    try { MHAndroid.asrStop(); } catch (e) {}
+  };
+  MHSpeechRecognition.prototype.abort = MHSpeechRecognition.prototype.stop;
+
+  try {
+    window.SpeechRecognition = MHSpeechRecognition;
+    window.webkitSpeechRecognition = MHSpeechRecognition;
+  } catch (e) {}
+
+  /* ------------------------------------------------------------------
+     4. Arquivos: o app exporta progresso com Blob + a.click().
+        Guardamos o Blob no createObjectURL porque o app chama
+        revokeObjectURL() logo depois do clique.
+     ------------------------------------------------------------------ */
+  var BLOBS = {};
+  try {
+    var _create = URL.createObjectURL;
+    URL.createObjectURL = function (obj) {
+      var u = _create.call(URL, obj);
+      try { BLOBS[u] = obj; } catch (e) {}
+      return u;
+    };
+  } catch (e) {}
+
+  function exportarBlob(href, nome) {
+    var b = BLOBS[href];
+    if (!b) {
+      try {
+        fetch(href).then(function (r) { return r.blob(); }).then(function (x) { ler(x, nome); });
+      } catch (e) { MHAndroid.toast('Nao foi possivel exportar o progresso.'); }
+      return;
+    }
+    ler(b, nome);
+  }
+  function ler(blob, nome) {
+    try {
+      var fr = new FileReader();
+      fr.onload = function () {
+        var s = String(fr.result);
+        MHAndroid.saveFile(s.substring(s.indexOf(',') + 1), nome);
+      };
+      fr.onerror = function () { MHAndroid.toast('Nao foi possivel exportar.'); };
+      fr.readAsDataURL(blob);
+    } catch (e) { MHAndroid.toast('Nao foi possivel exportar.'); }
+  }
+
+  try {
+    var _click = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function () {
+      try {
+        var href = this.getAttribute('href') || '';
+        var dl = this.getAttribute('download');
+        if (dl && href.indexOf('blob:') === 0) { exportarBlob(href, dl); return; }
+        if (/^https?:/i.test(href) && (this.target === '_blank' || dl)) {
+          MHAndroid.openExternal(href); return;
+        }
+      } catch (e) {}
+      return _click.apply(this, arguments);
+    };
+  } catch (e) {}
+
+  document.addEventListener('click', function (e) {
+    var a = (e.target && e.target.closest) ? e.target.closest('a') : null;
+    if (!a) return;
+    var href = a.getAttribute('href') || '';
+    var dl = a.getAttribute('download');
+    if (dl && href.indexOf('blob:') === 0) {
+      e.preventDefault(); e.stopPropagation(); exportarBlob(href, dl); return;
+    }
+    if (/^https?:/i.test(href) && (a.target === '_blank' || dl)) {
+      e.preventDefault(); e.stopPropagation(); MHAndroid.openExternal(href);
+    }
+  }, true);
+
+  /* ------------------------------------------------------------------
+     5. Midia do Drive DENTRO do app.
+        Arquivos de audio compartilhados por link tocam no MediaPlayer nativo,
+        sem inserir o mini-player do Drive na pagina. Videos publicos usam o
+        player nativo Android em tela cheia; arquivos privados continuam na
+        Chrome Custom Tab integrada, sem tentar autenticar dentro do WebView.
+     ------------------------------------------------------------------ */
+  function previewDrive(id) {
+    return 'https://drive.google.com/file/d/' + encodeURIComponent(id) + '/preview';
+  }
+
+  function atualizarBotoesAudio(id, estado) {
+    if (!id) return;
+    var botoes = document.querySelectorAll('[data-act="aud"][data-a], [data-act="aud2"][data-a]');
+    for (var i = 0; i < botoes.length; i++) {
+      var btn = botoes[i];
+      if (String(btn.getAttribute('data-a') || '') !== id) continue;
+      if (btn.__mhAudioLabel == null) btn.__mhAudioLabel = btn.textContent || '';
+      btn.dataset.mhAudioState = estado || '';
+      if (estado === 'loading') btn.textContent = '⏳ Carregando áudio…';
+      else if (estado === 'playing') btn.textContent = '⏸ Pausar áudio';
+      else if (estado === 'paused') btn.textContent = '▶ Continuar áudio';
+      else if (estado === 'error') btn.textContent = '↗ Abrir áudio no Chrome';
+      else btn.textContent = btn.__mhAudioLabel;
+    }
+  }
+
+  document.addEventListener('click', function (e) {
+    var btn = (e.target && e.target.closest)
+      ? e.target.closest('[data-act="play"][data-v]') : null;
+    if (!btn) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+
+    var id = String(btn.getAttribute('data-v') || '');
+    if (!/^[A-Za-z0-9_-]{10,100}$/.test(id)) {
+      MHAndroid.toast('Este vídeo não está disponível.');
+      return;
+    }
+
+    /* Conteúdo privado: abrir no navegador integrado, sem tentar login no WebView. */
+    if (driveLogin) {
+      try { MHAndroid.openExternal(previewDrive(id)); }
+      catch (err) { MHAndroid.toast('Não foi possível abrir o vídeo.'); }
+      return;
+    }
+
+    var card = btn.closest('.vidbtn');
+    var info = card && card.querySelector('.vs');
+    var titulo = info ? String(info.textContent || '').split('·')[0].trim() : 'Vídeo da aula';
+    try { MHAndroid.playDriveVideo(id, titulo); }
+    catch (err) { MHAndroid.openExternal(previewDrive(id)); }
+  }, true);
+
+  document.addEventListener('click', function (e) {
+    var btn = (e.target && e.target.closest)
+      ? e.target.closest('[data-act="aud"], [data-act="aud2"]') : null;
+    if (!btn) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+
+    var id = String(btn.getAttribute('data-a') || '');
+    if (!/^[A-Za-z0-9_-]{10,100}$/.test(id)) {
+      btn.textContent = 'Áudio indisponível';
+      return;
+    }
+
+    /* Arquivos privados precisam da conta Google no navegador integrado. */
+    if (driveLogin || btn.dataset.mhAudioState === 'error') {
+      try { MHAndroid.openExternal(previewDrive(id)); }
+      catch (err) { btn.textContent = 'Não foi possível abrir o áudio'; }
+      return;
+    }
+
+    if (btn.dataset.mhAudioState === 'loading') return;
+    var novoEstado = btn.dataset.mhAudioState === 'playing' ? 'paused' : 'loading';
+    atualizarBotoesAudio(id, novoEstado);
+    try { MHAndroid.toggleDriveAudio(id); }
+    catch (err) { atualizarBotoesAudio(id, 'error'); }
+  }, true);
+
+  try {
+    var _open = window.open;
+    window.open = function (url) {
+      try {
+        if (url && /^https?:/i.test(String(url))) {
+          MHAndroid.openExternal(String(url)); return null;
+        }
+      } catch (e) {}
+      return _open ? _open.apply(window, arguments) : null;
+    };
+  } catch (e) {}
+
+  try {
+    var css = document.createElement('style');
+    css.textContent =
+      '.mh-android-box{box-sizing:border-box;margin:8px 0;padding:14px;border:1px solid #CFD8DE;' +
+      'border-radius:12px;background:#EDF2F5;display:flex;flex-direction:column;gap:8px;align-items:flex-start}' +
+      '.mh-android-box button{background:#0B6BCB;color:#fff;border:0;border-radius:9px;' +
+      'padding:11px 16px;font-size:14px;font-weight:700;cursor:pointer}' +
+      '.mh-android-box small{color:#5A6A78;font-size:12px;line-height:1.4}' +
+      /* barra discreta de fallback, quando o player embutido esta tentando */
+      '.mh-android-box.mh-inline{margin:0 0 10px;padding:0;background:transparent;border:0;' +
+      'flex-direction:row;align-items:center;gap:10px;flex-wrap:wrap}' +
+      '.mh-android-box.mh-inline button{background:transparent;color:#0B6BCB;' +
+      'border:1px solid #CFD8DE;padding:6px 12px;font-size:12px;font-weight:650;border-radius:8px}' +
+      '.mh-android-box.mh-inline small{font-size:11.5px;color:#5A6A78}';
+    (document.head || document.documentElement).appendChild(css);
+  } catch (e) {}
+
+  function caixaMidia(url, destaque) {
+    var box = document.createElement('div');
+    box.className = 'mh-android-box' + (destaque ? '' : ' mh-inline');
+    var btn = document.createElement('button');
+    btn.textContent = destaque ? '▶ Abrir vídeo/PDF no Chrome' : '↗ Abrir no Chrome';
+    btn.onclick = function () { MHAndroid.openExternal(url); };
+    box.appendChild(btn);
+
+    var dica = document.createElement('small');
+    dica.textContent = destaque
+      ? 'O Google pede acesso para este arquivo. Abra no Chrome com sua conta autorizada. ' +
+        'O texto da aula continua disponivel aqui embaixo.'
+      : 'Se o player acima nao aparecer, toque aqui.';
+    box.appendChild(dica);
+    return box;
+  }
+
+  function neutralizarCaixa(host) {
+    host.innerHTML = '';
+    var props = {
+      'height': 'auto', 'min-height': '0', 'max-height': 'none',
+      'aspect-ratio': 'auto', 'background': 'transparent',
+      'padding': '0', 'margin': '0 0 8px', 'position': 'static',
+      'overflow': 'visible', 'border': '0', 'border-radius': '12px',
+      'display': 'block'
+    };
+    Object.keys(props).forEach(function (k) {
+      try { host.style.setProperty(k, props[k], 'important'); } catch (e) {}
+    });
+  }
+
+  var patchPendente = false;
+  function patchDrive() {
+    if (patchPendente) return;
+    patchPendente = true;
+    setTimeout(function () {
+      patchPendente = false;
+      try {
+        var lista = document.querySelectorAll('iframe[src*="drive.google.com"]');
+        for (var i = 0; i < lista.length; i++) {
+          var f = lista[i];
+          var url = f.getAttribute('src');
+          var host = f.closest ? f.closest('.vidbox,.pdfbox') : null;
+
+          if (driveLogin) {
+            /* Arquivo privado: substitui o player pelo botao. */
+            if (f.__mhSubstituido) continue;
+            f.__mhSubstituido = 1;
+            if (f.__mhBarElement && f.__mhBarElement.parentNode) {
+              f.__mhBarElement.parentNode.removeChild(f.__mhBarElement);
+            }
+            f.__mhBarElement = null;
+            var box = caixaMidia(url, true);
+            if (host) { neutralizarCaixa(host); host.appendChild(box); }
+            else {
+              if (f.parentNode) f.parentNode.insertBefore(box, f);
+              f.style.display = 'none';
+            }
+          } else {
+            /* Deixa o player tocar aqui; so acrescenta um plano B discreto. */
+            if (f.__mhBarra) continue;
+            f.__mhBarra = 1;
+            var bar = caixaMidia(url, false);
+            f.__mhBarElement = bar;
+            var alvo = host || f;
+            if (alvo.parentNode) alvo.parentNode.insertBefore(bar, alvo.nextSibling);
+          }
+        }
+
+        /* O aviso original culpa "cookies de terceiros (padrao no Safari)". */
+        var avisos = document.querySelectorAll('.lockmsg');
+        for (var k = 0; k < avisos.length; k++) {
+          var av = avisos[k];
+          if (av.__mhAviso) continue;
+          if (/cookies de terceiros/i.test(av.textContent || '')) {
+            av.__mhAviso = 1;
+            av.textContent = 'Se o player nao carregar, toque em "Abrir no Chrome". ' +
+                             'O texto da aula continua disponivel aqui embaixo.';
+            av.style.fontWeight = '500';
+          }
+        }
+      } catch (e) {}
+    }, 150);
+  }
+
+  document.addEventListener('click', function () {
+    setTimeout(patchDrive, 250);
+    setTimeout(patchDrive, 900);
+  }, true);
+
+  /* ------------------------------------------------------------------
+     6. Botao Voltar: a navegacao do app troca classes CSS e nao cria
+        historico. Empilhamos as paginas visitadas em cada frame.
+     ------------------------------------------------------------------ */
+  var pilha = [];
+  var atual = null;
+  function patchGo() {
+    try {
+      if (typeof window.go !== 'function' || window.go.__mhPatched) return;
+      var original = window.go;
+      function envolvida(p) {
+        if (atual !== null && atual !== p) {
+          pilha.push(atual);
+          if (pilha.length > 40) pilha.shift();
+        }
+        atual = p;
+        return original.apply(this, arguments);
+      }
+      envolvida.__mhPatched = true;
+      window.go = envolvida;
+      window.__mhFrameBack = function () {
+        if (!pilha.length) return false;
+        var p = pilha.pop();
+        atual = p;
+        try { original(p); } catch (e) {}
+        return true;
+      };
+    } catch (e) {}
+  }
+
+  if (IS_TOP) {
+    window.__mhBackPressed = function () {
+      try {
+        var lista = document.querySelectorAll('#palco iframe');
+        for (var i = 0; i < lista.length; i++) {
+          if (lista[i].classList && lista[i].classList.contains('on')) {
+            var w = lista[i].contentWindow;
+            if (w && w.__mhFrameBack) return w.__mhFrameBack();
+          }
+        }
+        var frames = window.__mhFrames || [];
+        for (var j = frames.length - 1; j >= 0; j--) {
+          if (frames[j] !== window && frames[j].__mhFrameBack) {
+            if (frames[j].__mhFrameBack()) return true;
+          }
+        }
+      } catch (e) {}
+      return false;
+    };
+  }
+
+  function boot() { detectarCursoPrivado(); patchGo(); patchDrive(); }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else { boot(); }
+  setTimeout(boot, 900);
+  setInterval(patchDrive, 3000);
+})();
