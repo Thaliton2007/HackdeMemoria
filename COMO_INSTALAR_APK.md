@@ -56,8 +56,9 @@ Pronto: o icone azul **Memoria Hack** fica na sua tela de aplicativos.
   idioma nao tiver voz instalada, va em
   **Configuracoes -> Sistema -> Idiomas -> Sintese de voz** e instale
   espanhol, ingles ou frances.
-- Nos cursos com gravações, toque em **Tocar o áudio** para iniciar. O botão
-  muda para **Pausar áudio** e depois **Continuar áudio**.
+- Nos cursos com áudio liberado por link, toque em **Tocar o áudio**. O botão
+  muda para **Pausar áudio** e depois **Continuar áudio**. Áudios privados
+  abrem na aba integrada do Google para pedir a conta autorizada.
 
 ## 4. Videos, PDFs e audios
 
