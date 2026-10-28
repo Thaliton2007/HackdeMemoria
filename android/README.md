@@ -63,7 +63,7 @@ a faixa da barra de status e `windowLightStatusBar=true` mantem os icones do
 sistema legiveis. Para midia privada, o bridge tambem neutraliza `.vidbox`/
 `.pdfbox` (caixas pretas 16:9) ao trocar o iframe pelo botao "Abrir no Chrome".
 
-## Midia do Drive dentro do app (v1.4)
+## Midia do Drive dentro do app (v1.5)
 
 O HTML original continua intacto; a ponte do APK intercepta os botoes de
 audio dos cursos. Para arquivos acessiveis por link, o app usa o `MediaPlayer`
@@ -73,11 +73,12 @@ Se a reproducao direta falhar, o botao passa a abrir o `/preview` numa **Chrome
 Custom Tab**. Para o acervo privado de Espanhol, o clique vai direto para essa
 aba integrada, sem tentar autenticar dentro do WebView.
 
-Para videos, o APK mantem o player oficial `/preview` dentro do curso, aumenta
-a altura do quadro no celular e acrescenta **Ampliar video**. O WebChromeClient
-ja implementa a exibicao em tela cheia pedida pelo player. **Pausar, avancar e
-velocidade continuam sob controle do player do Drive**; a ponte nao tenta
-inspecionar nem modificar o iframe de outro dominio.
+Para videos, o APK mantem o player oficial `/preview` dentro do curso. A moldura
+preserva o formato 16:9 e se estende ate as bordas internas do cartao, para
+aproveitar melhor a largura disponivel sem criar barras pretas excessivas. O
+botao **Ampliar video** solicita tela cheia, tratada pelo WebChromeClient.
+**Pausar, avancar e velocidade continuam sob controle do player do Drive**; a
+ponte nao tenta inspecionar nem modificar o iframe de outro dominio.
 
 Os arquivos de audio, video e PDF continuam hospedados no Drive. **Nenhuma
 permissao foi alterada.** O video `Opening_Class.mp4` tem permissao
@@ -95,7 +96,7 @@ direto para a aula, nao uma aba solta no navegador.
 | `SpeechRecognition` (falar) | Nao implementado | `SpeechRecognizer` + shim JS |
 | `getUserMedia` (gravar voz) | Precisa de permissao explicita | `onPermissionRequest` + `RECORD_AUDIO` |
 | Audio no Drive | Iframe deixava mini-player visivel e nao iniciava sozinho | `MediaPlayer` nativo para arquivos acessiveis; Custom Tab para privado ou em falha |
-| Video no Drive em iframe | Quadro 16:9 pequeno limitava os controles no celular | Quadro mais alto + botao Ampliar; fullscreen tratado pelo WebChromeClient |
+| Video no Drive em iframe | Moldura interna estreita e controles cortados no celular | 16:9 usando a largura do cartao + botao Ampliar; fullscreen no WebChromeClient |
 | Botao Voltar | Navegacao do app nao cria historico | Pilha de paginas por frame + `__mhBackPressed` |
 | Exportar progresso (`Blob` + `download`) | WebView nao salva blob | `saveFile()` via MediaStore -> Downloads |
 | Importar progresso (`<input type=file>`) | Precisa de chooser nativo | `onShowFileChooser` + `onActivityResult` |

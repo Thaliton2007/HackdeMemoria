@@ -14,16 +14,16 @@ e tocar no arquivo **MemoriaHack.apk**.
 
 O arquivo tem cerca de **4,4 MB** e precisa de **Android 8.0 ou mais novo**.
 
-> **Versão 1.4 (atual)** — o botão de áudio foi ajustado para tocar no próprio
-> app, sem deixar o mini-player do Drive aberto na página. O quadro de vídeo
-> fica maior no celular e ganhou o botão **Ampliar vídeo** para facilitar o
-> acesso aos controles do Drive. Se a reprodução direta falhar, há a opção de
-> abrir o arquivo numa **aba integrada**. Arquivos privados continuam exigindo
-> a conta autorizada nessa aba; nenhuma permissão do Drive foi alterada.
+> **Versão 1.5 (atual)** — mantém o áudio no próprio app, sem deixar o
+> mini-player do Drive aberto. O vídeo preserva o formato 16:9, ocupa melhor a
+> largura do celular e tem o botão **Ampliar vídeo**, para reduzir o corte dos
+> controles. Se a reprodução direta falhar, há a opção de abrir o arquivo numa
+> **aba integrada**. Arquivos privados continuam exigindo a conta autorizada;
+> nenhuma permissão do Drive foi alterada.
 >
-> Versão 1.3 — player de vídeo/PDF dentro da aula, tela cheia e aba integrada
-> como alternativa para arquivos privados. Versão 1.2 — margens do celular
-> (barra de status/câmera e gestos) e fundo do player corrigidos. A chave de
+> Versão 1.4 — áudio no player nativo e quadro de vídeo ampliado. Versão 1.3 —
+> player de vídeo/PDF dentro da aula e aba integrada para arquivos privados.
+> Versão 1.2 — margens do celular e fundo do player corrigidos. A chave de
 > assinatura é estável desde a versão 1.2, então a atualização instala por cima
 > sem apagar o progresso.
 >
@@ -62,11 +62,11 @@ Pronto: o icone azul **Memoria Hack** fica na sua tela de aplicativos.
 
 ## 4. Videos, PDFs e audios
 
-Na versao 1.4, o quadro do video esta maior no celular e ha um botao
-**"Ampliar vídeo"** junto ao player. O player do Drive oferece os controles
-para pausar, avançar e ajustar a velocidade; o quadro maior e o botao novo
-facilitam chegar neles. **"Abrir no Chrome"** continua como alternativa se o
-video nao aparecer ou a tela cheia nao abrir.
+Na versao 1.5, a moldura do video mantem o formato **16:9** e aproveita melhor
+a largura do cartao no celular, para evitar excesso de barras pretas e dar mais
+espaco aos controles. Use o botao **"Ampliar vídeo"** para tela cheia. O player
+do Drive oferece pausar, avançar e ajustar a velocidade; **"Abrir no Chrome"**
+continua como alternativa se o video nao aparecer ou nao ampliar.
 
 Nos cursos em que o audio esta acessivel por link, **"Tocar o áudio"** inicia
 a reproducao no app, sem deixar o mini-player do Drive aberto na aula. Toque

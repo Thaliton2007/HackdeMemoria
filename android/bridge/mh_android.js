@@ -306,10 +306,11 @@
       '.mh-android-box.mh-inline button{background:transparent;color:#0B6BCB;' +
       'border:1px solid #CFD8DE;padding:6px 12px;font-size:12px;font-weight:650;border-radius:8px}' +
       '.mh-android-box.mh-inline small{font-size:11.5px;color:#5A6A78}' +
-      /* O quadro 16:9 original corta controles do player do Drive em celulares. */
-      '.vidbox[data-v]{height:58vh!important;min-height:320px!important;max-height:520px!important;' +
-      'aspect-ratio:auto!important;width:100%!important}' +
-      '.vidbox[data-v] iframe{width:100%!important;height:100%!important;border:0!important}';
+      /* Usa a largura interna do cartao e preserva o formato 16:9 do video. */
+      '.vidbox.mh-video-fit{height:auto!important;min-height:0!important;max-height:none!important;' +
+      'aspect-ratio:16/9!important;width:calc(100% + 48px)!important;margin-left:-24px!important;' +
+      'box-sizing:border-box!important}' +
+      '.vidbox.mh-video-fit iframe{width:100%!important;height:100%!important;border:0!important}';
     (document.head || document.documentElement).appendChild(css);
   } catch (e) {}
 
@@ -395,10 +396,14 @@
           } else {
             /* Deixa o player tocar aqui; so acrescenta um plano B discreto. */
             if (host && host.classList.contains('vidbox') && host.hasAttribute('data-v')) {
-              host.style.setProperty('aspect-ratio', 'auto', 'important');
-              host.style.setProperty('height', '58vh', 'important');
-              host.style.setProperty('min-height', '320px', 'important');
-              host.style.setProperty('max-height', '520px', 'important');
+              host.classList.add('mh-video-fit');
+              host.style.setProperty('aspect-ratio', '16 / 9', 'important');
+              host.style.setProperty('height', 'auto', 'important');
+              host.style.setProperty('min-height', '0', 'important');
+              host.style.setProperty('max-height', 'none', 'important');
+              host.style.setProperty('width', 'calc(100% + 48px)', 'important');
+              host.style.setProperty('margin-left', '-24px', 'important');
+              host.style.setProperty('box-sizing', 'border-box', 'important');
               f.setAttribute('allow', 'autoplay; fullscreen; encrypted-media; picture-in-picture');
               f.setAttribute('allowfullscreen', '');
             }

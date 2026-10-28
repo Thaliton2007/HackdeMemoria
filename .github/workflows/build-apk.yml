@@ -182,7 +182,7 @@ jobs:
 
           Curso completo embutido: cartas, SRS, testes e provoes funcionam sem internet. Videos/PDFs com link no Drive tentam tocar dentro do app; audios acessiveis por link tocam no player nativo sem mini-player na pagina. Arquivos privados usam Chrome Custom Tab.
 
-          Versao 1.4: botao de audio inicia no MediaPlayer nativo para arquivos acessiveis por link, sem deixar mini-player do Drive na pagina; arquivos privados continuam na Chrome Custom Tab. Quadro do video ampliado, com botao de tela cheia e controles do player do Drive. Mantem o HTML de producao intacto, as margens seguras e a assinatura estavel.
+          Versao 1.5: audio acessivel por link toca no MediaPlayer nativo, sem mini-player do Drive; arquivos privados continuam na Chrome Custom Tab. Moldura do video preserva o formato 16:9 e ocupa melhor a largura do celular, com botao de tela cheia. Mantem o HTML de producao intacto, as margens seguras e a assinatura estavel.
 
           SHA-256: `__SHA__`
 
